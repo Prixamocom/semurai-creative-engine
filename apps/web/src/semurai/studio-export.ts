@@ -34,7 +34,10 @@ export async function exportStudioDocument(source: string, deck: boolean, kind: 
   iframe.setAttribute('sandbox', 'allow-scripts allow-modals');
   iframe.style.cssText = 'position:fixed;left:-20000px;top:0;width:1920px;height:1080px;border:0;pointer-events:none';
   const injected = scripts.map(script => '<script>' + script.replace(/<\/script/gi, '<\\/script') + '</script>').join('');
-  const execute = `(async()=>{const notify=(data)=>parent.postMessage({type:'semurai-export',token:${JSON.stringify(token)},...data},'*');try{await document.fonts.ready;await Promise.all([...document.images].map(i=>i.complete?Promise.resolve():new Promise(r=>{i.onload=r;i.onerror=r;setTimeout(r,8000)})));await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));${kind === 'pptx' ? "const result=await SemuraiDeckExport.runDomToPptx('.deck-stage .slide');notify(result);" : "addEventListener('afterprint',()=>notify({printed:true}),{once:true});window.print();notify({printed:true});"}}catch(e){notify({error:String(e)})}})();`;
+  // Off-screen opaque frames can have requestAnimationFrame suspended. Fonts
+  // and images are awaited explicitly; a layout read flushes styles without
+  // depending on the frame being visible or an animation tick being delivered.
+  const execute = `(async()=>{const notify=(data)=>parent.postMessage({type:'semurai-export',token:${JSON.stringify(token)},...data},'*');try{await document.fonts.ready;await Promise.all([...document.images].map(i=>i.complete?Promise.resolve():new Promise(r=>{i.onload=r;i.onerror=r;setTimeout(r,8000)})));void document.body.offsetHeight;${kind === 'pptx' ? "const result=await SemuraiDeckExport.runDomToPptx('.deck-stage .slide');notify(result);" : "addEventListener('afterprint',()=>notify({printed:true}),{once:true});window.print();notify({printed:true});"}}catch(e){notify({error:String(e)})}})();`;
   const html = renderSource(source, deck);
   const bodyEnd = findRealTagOffset(html, HTML_TAG_PATTERNS.bodyClose);
   if (bodyEnd < 0) throw new Error('Invalid export document');
