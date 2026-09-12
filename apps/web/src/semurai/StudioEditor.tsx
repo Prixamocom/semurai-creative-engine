@@ -183,7 +183,7 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
     await action(async () => {
       const snapshot = await saveCurrent();
       if (!snapshot) return;
-      const b64 = format === 'pptx' ? await exportStudioDocument(snapshot.document.html, true, 'pptx', path, context.project.title) : undefined;
+      const b64 = format === 'pptx' ? await exportStudioDocument(snapshot.document.html, true, 'pptx', path, context.project.title, snapshot.document.notes) : undefined;
       if (format === 'pptx' && !b64) throw new Error(c.error);
       const content = b64 ? Uint8Array.from(atob(b64), character => character.charCodeAt(0)) : snapshot.document.html;
       const mime = format === 'html' ? 'text/html;charset=utf-8' : 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
