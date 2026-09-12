@@ -1,0 +1,9 @@
+# Deployment verifies this commit-tagged local base against its recorded image ID.
+ARG ENGINE_IMAGE=semurai-creative-engine:2b37fad4a
+FROM ${ENGINE_IMAGE}
+USER root
+RUN npm install --global --ignore-scripts opencode-ai@1.18.30 && \
+    node /usr/local/lib/node_modules/opencode-ai/postinstall.mjs && \
+    npm cache clean --force && \
+    opencode --version
+USER open-design

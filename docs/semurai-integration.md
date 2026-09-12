@@ -64,3 +64,13 @@ the Semurai image.
 7. Record fork commit, upstream SHA, base-image digest and rollback image.
 
 Do not merge to main or force-push automatically.
+# Model runtime image
+
+`deploy/Dockerfile.semurai-runtime` layers the pinned OpenCode 1.18.30 BYOK
+runtime onto the tested Semurai image. Its base commit tag must be checked
+against the recorded local image ID before building; deploy the resulting
+immutable image ID. The explicit pinned-package postinstall prepares the native
+runtime executable, and the build verifies its version. Semurai's host broker
+creates a separate hardened container and data/workspace mounts for each run.
+No daemon port is published. Provider credentials are supplied per run; the
+image contains no credentials. Simple Canvas patches bypass this runtime.
