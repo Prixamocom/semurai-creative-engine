@@ -14,6 +14,7 @@ import { changeSlide, replaceStyleBlock, styleBlocks, type SlideOperation } from
 import { downloadStudioFile, exportStudioDocument } from './studio-export';
 import { renderMarkdown } from '../runtime/markdown';
 import { StudioMedia, type StudioImage } from './StudioMedia';
+import { StudioPresenter } from './StudioPresenter';
 import styles from './StudioEditor.module.css';
 
 interface StudioDocument { version: 1; kind: string; name: string; html: string; notes: (string | null)[]; brandContextHash?: string }
@@ -32,6 +33,7 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
   const latest = useRef<StudioDocument | null>(null);
   const baseline = useRef<SavedSource | null>(null);
   const [document, setDocument] = useState<StudioDocument | null>(null);
+  const [presentation, setPresentation] = useState<{ document: StudioDocument; slide: number } | null>(null);
   const [saved, setSaved] = useState<SavedSource | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [versions, setVersions] = useState<Version[]>([]);
@@ -212,6 +214,7 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
   }
 
   return <main className={styles.editor} data-testid="semurai-studio-editor">
+    {presentation && <StudioPresenter source={presentation.document.html} notes={presentation.document.notes} initialSlide={presentation.slide} locale={context.project.uiLocale} onClose={index => { setPresentation(null); navigateSlide(Math.min(index, Math.max(0, count - 1))); }} />}
     <aside className={styles.chat + (showChat ? ' ' + styles.chatVisible : '')}>
       <header className={styles.chatHeader}><a href={safeStudioReturn(context)!} title={c.back}><ArrowLeft size={17} /></a><strong>{context.project.title}</strong><button className={styles.mobileChatToggle} onClick={() => setShowChat(false)} title={c.close}><X size={16} /></button><button onClick={onClose} title={c.close}><X size={16} /></button></header>
       <div className={styles.conversation} ref={chatLog} role="log" onScroll={event => { const element = event.currentTarget; followChat.current = element.scrollHeight - element.scrollTop - element.clientHeight < 160; }}><div className={styles.brand}><Sparkles size={20} /><span>{c.newProject}</span></div>
@@ -222,7 +225,7 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
     </aside>
     <section className={styles.workspace}>
       <header className={styles.header}><Button className={styles.mobileChatToggle} title={c.chat} onClick={() => setShowChat(true)}><MessageSquare size={16} /></Button><div className={styles.fileTab}><Code2 size={15} /><span>{context.project.title}</span></div><span className={styles.saveState}>{dirty ? c.unsaved : <><Check size={13} />{c.saved}</>}</span><button title={c.history} onClick={() => setShowHistory(!showHistory)}><History size={17} /></button><Button disabled={!dirty || busy} onClick={() => { void action(async () => { await saveCurrent(); }); }}>{c.save}</Button><details className={styles.exportMenu}><summary><Download size={15} />{c.export}</summary><div><Button disabled={!document || busy} onClick={() => { void exportFile('html'); }}>{c.downloadHtml}</Button>{deck && <Button disabled={!document || busy} onClick={() => { void exportFile('pptx'); }}>{c.downloadPptx}</Button>}<Button disabled={!document || busy} onClick={() => { if (document) void action(async () => { await exportStudioDocument(document.html, deck, 'print', path, context.project.title); }); }}>{c.print}</Button><Button onClick={() => { setShowExports(!showExports); setShowHistory(false); }}>{c.exportHistory}</Button></div></details></header>
-      <div className={styles.toolbar}><div className={styles.segment}><button className={mode !== 'source' ? styles.active : ''} onClick={() => setMode('preview')}><Eye size={15} />{c.preview}</button><button className={mode === 'source' ? styles.active : ''} onClick={() => setMode('source')}><Code2 size={15} />{c.source}</button></div><select value={device} onChange={event => setDevice(Number(event.target.value))} aria-label={c.desktop}><option value={0}>{c.desktop}</option><option value={768}>{c.tablet}</option><option value={390}>{c.mobile}</option></select><div className={styles.spacer} /><button disabled={!undo.length} title={c.undo} onClick={() => travel('undo')}><RotateCcw size={16} /></button><button disabled={!redo.length} title={c.redo} onClick={() => travel('redo')}><RotateCw size={16} /></button><button className={showLayers ? styles.active : ''} title={c.layers} onClick={() => { setShowLayers(!showLayers); setMode('edit'); }}><Layers size={16} /></button><button className={mode === 'edit' ? styles.active : ''} onClick={() => setMode(mode === 'edit' ? 'preview' : 'edit')}><Pencil size={15} />{c.edit}</button><button title={deck ? c.present : c.fullscreen} onClick={() => { void viewport.current?.requestFullscreen(); }}><Maximize2 size={16} /></button><select value={zoom} aria-label={c.zoom} onChange={event => setZoom(Number(event.target.value))}>{[50, 75, 100, 125, 150].map(value => <option key={value} value={value}>{value}%</option>)}</select></div>
+      <div className={styles.toolbar}><div className={styles.segment}><button className={mode !== 'source' ? styles.active : ''} onClick={() => setMode('preview')}><Eye size={15} />{c.preview}</button><button className={mode === 'source' ? styles.active : ''} onClick={() => setMode('source')}><Code2 size={15} />{c.source}</button></div><select value={device} onChange={event => setDevice(Number(event.target.value))} aria-label={c.desktop}><option value={0}>{c.desktop}</option><option value={768}>{c.tablet}</option><option value={390}>{c.mobile}</option></select><div className={styles.spacer} /><button disabled={!undo.length} title={c.undo} onClick={() => travel('undo')}><RotateCcw size={16} /></button><button disabled={!redo.length} title={c.redo} onClick={() => travel('redo')}><RotateCw size={16} /></button><button className={showLayers ? styles.active : ''} title={c.layers} onClick={() => { setShowLayers(!showLayers); setMode('edit'); }}><Layers size={16} /></button><button className={mode === 'edit' ? styles.active : ''} onClick={() => setMode(mode === 'edit' ? 'preview' : 'edit')}><Pencil size={15} />{c.edit}</button><button title={deck ? c.present : c.fullscreen} disabled={!document || (deck && count === 0)} onClick={() => { if (deck && document) setPresentation({ document, slide }); else void viewport.current?.requestFullscreen(); }}><Maximize2 size={16} /></button><select value={zoom} aria-label={c.zoom} onChange={event => setZoom(Number(event.target.value))}>{[50, 75, 100, 125, 150].map(value => <option key={value} value={value}>{value}%</option>)}</select></div>
       {expired && <div className={styles.error} role="alert">{c.expired}<a href={safeStudioReturn(context)!} target="_blank" rel="noopener noreferrer">{c.back}</a></div>}
       {error && <div className={styles.error} role="alert">{error}<button onClick={() => setError('')}><X size={15} /></button></div>}
       <div className={styles.body}>
@@ -240,4 +243,5 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
     </section>
   </main>;
 }
+
 
