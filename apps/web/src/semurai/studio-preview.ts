@@ -1,4 +1,5 @@
 import DOMPurify from 'dompurify';
+import { DECK_SKELETON_HTML } from '@open-design/contracts';
 import { findRealTagEnd, HTML_TAG_PATTERNS } from '@open-design/contracts/runtime/html-injection-points';
 import { annotateManualEditSourcePaths, annotateMissingOdIds, buildSrcdoc } from '../runtime/srcdoc';
 
@@ -19,6 +20,20 @@ export function studioPreviewSource(source: string, slide = 0, edit = false, dec
     for (const name of ['href', 'xlink:href']) {
       const value = element.getAttribute(name);
       if (value && !value.startsWith('#')) element.removeAttribute(name);
+    }
+  }
+  if (deck) {
+    const stage = parsed.querySelector<HTMLElement>('.deck-stage');
+    if (stage) {
+      stage.id = 'deck-stage';
+      Object.assign(stage.style, { position: 'absolute', left: '0', top: '0', width: '1920px', height: '1080px', transformOrigin: 'top left' });
+      // Sanitization removes the author's copy of the framework too. Restore
+      // only the pinned upstream runtime for fitting/navigation, never author JS.
+      const framework = new DOMParser().parseFromString(DECK_SKELETON_HTML, 'text/html').querySelector('script')?.textContent;
+      if (!framework) throw new Error('Deck runtime unavailable');
+      const runtime = parsed.createElement('script');
+      runtime.textContent = framework.replace('if (e.defaultPrevented) return;', `if (${edit} || e.defaultPrevented) return;`);
+      parsed.body.appendChild(runtime);
     }
   }
   const prepared = buildSrcdoc('<!doctype html>\n' + parsed.documentElement.outerHTML, {

@@ -114,7 +114,10 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
     };
     window.addEventListener('message', receive); return () => window.removeEventListener('message', receive);
   }, [count]);
-  const srcdoc = useMemo(() => document ? studioPreviewSource(document.html, slide, mode === 'edit', deck) : '', [document?.html, slide, mode, deck]);
+  // Deck navigation uses the upstream message protocol; rebuilding srcdoc on
+  // every reported slide would reset the runtime and undo the user's navigation.
+  const srcdoc = useMemo(() => document ? studioPreviewSource(document.html, slide, mode === 'edit', deck) : '', [document?.html, mode, deck]);
+  useEffect(() => { frame.current?.contentWindow?.postMessage({ type: 'od:slide', action: 'go', index: slide }, '*'); }, [slide]);
   const thumbnail = useCallback((index: number) => studioPreviewSource(document?.html ?? '', index, false, true), [document?.html]);
   async function saveCurrent(): Promise<SavedSource | null> {
     const current = latest.current;
