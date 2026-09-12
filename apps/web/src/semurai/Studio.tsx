@@ -69,30 +69,11 @@ export function SemuraiStudio() {
   return <main className="semurai-studio-shell" data-testid="semurai-studio">
     <header className="semurai-studio-header">
       <div className="semurai-studio-wordmark"><span aria-hidden="true">S</span>Semurai Creative <small>Studio</small></div>
-      {context && !unavailable && <button type="button" onClick={() => { void closeSession(); }}>{c.signOut}</button>}
     </header>
     <section className="semurai-studio-content">
       {unavailable ? <div role="alert"><h1>{c.expired}</h1><p>{c.expiredHelp}</p>
-        <a className="semurai-studio-primary" href={context ? safeStudioReturn(context)! : 'https://semur.ai/app/creative'}>{c.back}</a></div>
-        : !context ? <p role="status">{c.loading}</p> : <>
-          <div className="semurai-studio-connected"><span aria-hidden="true" />{c.connected}</div>
-          <h1 dir={context.project.direction}>{context.project.title}</h1>
-          <p className="semurai-studio-subtitle">{c.subtitle}</p>
-          <div className="semurai-studio-project">
-            <div className="semurai-studio-artifact" aria-hidden="true">
-              <div /><div /><div />
-            </div>
-            <div><h2>{c[context.project.artifactType as 'presentation'] ?? c.project}</h2>
-              <p>{context.project.currentVersion ? c.saved : c.empty}</p>
-              <dl>
-                <div><dt>{c.version}</dt><dd>{context.project.currentVersion}</dd></div>
-                <div><dt>{c.language}</dt><dd>{context.project.locale.toUpperCase()}</dd></div>
-                <div><dt>{c.sourceLanguage}</dt><dd>{context.project.sourceLocale.toUpperCase()}</dd></div>
-              </dl>
-              <a className="semurai-studio-primary" href={safeStudioReturn(context)!}>{c.back}</a>
-            </div>
-          </div>
-        </>}
+        <a className="semurai-studio-primary" href="https://semur.ai/app/creative">{c.back}</a></div>
+        : <p role="status">{c.loading}</p>}
     </section>
   </main>;
 }
