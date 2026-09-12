@@ -15,6 +15,8 @@ import { downloadStudioFile, exportStudioDocument } from './studio-export';
 import { renderMarkdown } from '../runtime/markdown';
 import { StudioMedia, type StudioImage } from './StudioMedia';
 import { StudioPresenter } from './StudioPresenter';
+import { StudioImagePicker, studioImageCopy } from './StudioImagePicker';
+import { placeStudioImage } from './studio-images';
 import styles from './StudioEditor.module.css';
 
 interface StudioDocument { version: 1; kind: string; name: string; html: string; notes: (string | null)[]; brandContextHash?: string }
@@ -45,6 +47,7 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
   const [images, setImages] = useState<StudioImage[]>([]);
   const [useLibrary, setUseLibrary] = useState(true);
   const [mediaBusy, setMediaBusy] = useState(false);
+  const [imagePicker, setImagePicker] = useState<{ source: string; target: ManualEditTarget | null } | null>(null);
   const chatLog = useRef<HTMLDivElement>(null);
   const followChat = useRef(true);
   const [mode, setMode] = useState<'preview' | 'edit' | 'source'>('preview');
@@ -209,11 +212,20 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
     });
   }
   async function pickImage(file: File): Promise<string | null> {
-    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 1_000_000) { setError(c.error); return null; }
-    return new Promise(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => resolve(null); reader.readAsDataURL(file); });
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 6_000_000) { setError(c.error); return null; }
+    try {
+      const data = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsDataURL(file); });
+      return ((await api('media/upload', 'POST', { image_data: data, title: file.name })).data as StudioImage).dataUrl;
+    } catch { setError(c.error); return null; }
   }
 
   return <main className={styles.editor} data-testid="semurai-studio-editor">
+    {imagePicker && <StudioImagePicker target={imagePicker.target} locale={context.project.uiLocale} api={api} onClose={() => setImagePicker(null)} onApply={(image, alt, placement) => {
+      if (!latest.current || latest.current.html !== imagePicker.source) return false;
+      const html = placeStudioImage(latest.current.html, { dataUrl: image.dataUrl, alt }, placement, context.project.artifactType === 'email', imagePicker.target?.id);
+      if (!html) return false;
+      change({ ...latest.current, html }); setSelected(null); setImagePicker(null); return true;
+    }} />}
     {presentation && <StudioPresenter source={presentation.document.html} notes={presentation.document.notes} initialSlide={presentation.slide} locale={context.project.uiLocale} onClose={index => { setPresentation(null); navigateSlide(Math.min(index, Math.max(0, count - 1))); }} />}
     <aside className={styles.chat + (showChat ? ' ' + styles.chatVisible : '')}>
       <header className={styles.chatHeader}><a href={safeStudioReturn(context)!} title={c.back}><ArrowLeft size={17} /></a><strong>{context.project.title}</strong><button className={styles.mobileChatToggle} onClick={() => setShowChat(false)} title={c.close}><X size={16} /></button><button onClick={onClose} title={c.close}><X size={16} /></button></header>
@@ -225,7 +237,7 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
     </aside>
     <section className={styles.workspace}>
       <header className={styles.header}><Button className={styles.mobileChatToggle} title={c.chat} onClick={() => setShowChat(true)}><MessageSquare size={16} /></Button><div className={styles.fileTab}><Code2 size={15} /><span>{context.project.title}</span></div><span className={styles.saveState}>{dirty ? c.unsaved : <><Check size={13} />{c.saved}</>}</span><button title={c.history} onClick={() => setShowHistory(!showHistory)}><History size={17} /></button><Button disabled={!dirty || busy} onClick={() => { void action(async () => { await saveCurrent(); }); }}>{c.save}</Button><details className={styles.exportMenu}><summary><Download size={15} />{c.export}</summary><div><Button disabled={!document || busy} onClick={() => { void exportFile('html'); }}>{c.downloadHtml}</Button>{deck && <Button disabled={!document || busy} onClick={() => { void exportFile('pptx'); }}>{c.downloadPptx}</Button>}<Button disabled={!document || busy} onClick={() => { if (document) void action(async () => { await exportStudioDocument(document.html, deck, 'print', path, context.project.title); }); }}>{c.print}</Button><Button onClick={() => { setShowExports(!showExports); setShowHistory(false); }}>{c.exportHistory}</Button></div></details></header>
-      <div className={styles.toolbar}><div className={styles.segment}><button className={mode !== 'source' ? styles.active : ''} onClick={() => setMode('preview')}><Eye size={15} />{c.preview}</button><button className={mode === 'source' ? styles.active : ''} onClick={() => setMode('source')}><Code2 size={15} />{c.source}</button></div><select value={device} onChange={event => setDevice(Number(event.target.value))} aria-label={c.desktop}><option value={0}>{c.desktop}</option><option value={768}>{c.tablet}</option><option value={390}>{c.mobile}</option></select><div className={styles.spacer} /><button disabled={!undo.length} title={c.undo} onClick={() => travel('undo')}><RotateCcw size={16} /></button><button disabled={!redo.length} title={c.redo} onClick={() => travel('redo')}><RotateCw size={16} /></button><button className={showLayers ? styles.active : ''} title={c.layers} onClick={() => { setShowLayers(!showLayers); setMode('edit'); }}><Layers size={16} /></button><button className={mode === 'edit' ? styles.active : ''} onClick={() => setMode(mode === 'edit' ? 'preview' : 'edit')}><Pencil size={15} />{c.edit}</button><button title={deck ? c.present : c.fullscreen} disabled={!document || (deck && count === 0)} onClick={() => { if (deck && document) setPresentation({ document, slide }); else void viewport.current?.requestFullscreen(); }}><Maximize2 size={16} /></button><select value={zoom} aria-label={c.zoom} onChange={event => setZoom(Number(event.target.value))}>{[50, 75, 100, 125, 150].map(value => <option key={value} value={value}>{value}%</option>)}</select></div>
+      <div className={styles.toolbar}><div className={styles.segment}><button className={mode !== 'source' ? styles.active : ''} onClick={() => setMode('preview')}><Eye size={15} />{c.preview}</button><button className={mode === 'source' ? styles.active : ''} onClick={() => setMode('source')}><Code2 size={15} />{c.source}</button></div><select value={device} onChange={event => setDevice(Number(event.target.value))} aria-label={c.desktop}><option value={0}>{c.desktop}</option><option value={768}>{c.tablet}</option><option value={390}>{c.mobile}</option></select><div className={styles.spacer} />{!deck && <Button disabled={!document || busy || expired} onClick={() => { if (document) setImagePicker({ source: document.html, target: mode === 'edit' ? selected : null }); }}>{studioImageCopy[context.project.uiLocale].add}</Button>}<button disabled={!undo.length} title={c.undo} onClick={() => travel('undo')}><RotateCcw size={16} /></button><button disabled={!redo.length} title={c.redo} onClick={() => travel('redo')}><RotateCw size={16} /></button><button className={showLayers ? styles.active : ''} title={c.layers} onClick={() => { setShowLayers(!showLayers); setMode('edit'); }}><Layers size={16} /></button><button className={mode === 'edit' ? styles.active : ''} onClick={() => setMode(mode === 'edit' ? 'preview' : 'edit')}><Pencil size={15} />{c.edit}</button><button title={deck ? c.present : c.fullscreen} disabled={!document || (deck && count === 0)} onClick={() => { if (deck && document) setPresentation({ document, slide }); else void viewport.current?.requestFullscreen(); }}><Maximize2 size={16} /></button><select value={zoom} aria-label={c.zoom} onChange={event => setZoom(Number(event.target.value))}>{[50, 75, 100, 125, 150].map(value => <option key={value} value={value}>{value}%</option>)}</select></div>
       {expired && <div className={styles.error} role="alert">{c.expired}<a href={safeStudioReturn(context)!} target="_blank" rel="noopener noreferrer">{c.back}</a></div>}
       {error && <div className={styles.error} role="alert">{error}<button onClick={() => setError('')}><X size={15} /></button></div>}
       <div className={styles.body}>

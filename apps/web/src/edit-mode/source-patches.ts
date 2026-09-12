@@ -275,7 +275,7 @@ function inferKind(el: Element): 'text' | 'link' | 'image' | 'container' {
   return 'text';
 }
 
-function findEditableElement(doc: Document, id: string): Element | null {
+export function findEditableElement(doc: Document, id: string): Element | null {
   if (id === '__body__') return doc.body;
   return (
     doc.querySelector(`[data-od-id="${cssEscape(id)}"]`) ??

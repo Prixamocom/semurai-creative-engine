@@ -1,0 +1,8 @@
+.dialog { width:min(620px,calc(100vw - 32px)); max-height:85vh; overflow:auto; padding:24px; }
+.header { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:20px; }
+.header h2 { margin:0; font-size:18px; font-weight:600; }
+.field { display:flex; flex-direction:column; gap:8px; margin-top:16px; font-size:13px; }
+.field input,.field select { width:100%; background:var(--bg-panel); color:var(--text-primary); border:1px solid var(--border); border-radius:8px; padding:10px; }
+.hint { font-size:12px; line-height:1.5; color:var(--text-secondary); margin:8px 0 20px; }
+.footer { display:flex; justify-content:flex-end; gap:10px; border-top:1px solid var(--border); padding-top:16px; }
+.footer button:last-child { background:var(--text-strong); color:var(--bg-panel); border-color:var(--text-strong); }

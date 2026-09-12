@@ -69,6 +69,15 @@ the model receives descriptive context and catalogue URLs. A separate DeepSeek
 image-analysis call supplies reference descriptions before generation/editing.
 No arbitrary browser-provided image URL is fetched by this path.
 
+Landing and email editing take priority over further presentation features.
+The direct image picker uses the same owned library and Core upload pipeline.
+It can replace an image, insert into a selected content container/table cell,
+or append to the content. Alternative text is editable. Replacement preserves
+layout attributes and removes stale responsive candidates. Email appends use
+presentation-table markup. These local edits participate in undo/redo and
+canonical version saves; they require no model call. Portable embedded images
+in the source are not a claim of compatibility with every email delivery client.
+
 Focused checks cover these integration seams. Full cross-format AI generation,
 PowerPoint application/visual validation and operational acceptance remain
 separate release gates; a successful static build does not prove those flows.
