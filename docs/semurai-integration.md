@@ -36,11 +36,42 @@ the current Studio preview, manual edit and deck export capabilities only for
 landing, presentation and document workspaces. Prefer editable PPTX exports;
 validate the actual PowerPoint object structure in acceptance tests.
 
-At the pinned upstream revision, `import-export-routes.ts` explicitly requires
-the desktop renderer for editable PPTX and raster exports. A bare daemon image
-does not provide that renderer. Semurai must adapt the existing dom-to-pptx
-rendering path to an isolated server renderer before claiming presentation
-exports work; the baseline engine health check does not validate exports.
+At the pinned upstream revision, `import-export-routes.ts` requires the desktop
+renderer for editable PPTX and raster exports. Semurai Studio adapts that same
+pinned browser converter through `packages/artifact-renderer` and an opaque,
+sanitized browser frame. It does not call the desktop-only export endpoint.
+The baseline daemon health check does not validate exports; inspect actual
+PPTX parts and exercise the authenticated save/download flow separately.
+
+## Adapted Studio
+
+The branded `semurai-studio` build serves presentations, landing pages, email,
+documents and reports through a project-scoped session. Its Core callback is
+held by the Creative service, never exposed as a browser bearer credential.
+Laravel remains authoritative for source, versions, jobs and private exports.
+
+`StudioEditor` reuses the upstream preview, direct-edit bridge and deck runtime.
+Source HTML/CSS and speaker notes are saved together. Presenter view captures
+the current document for the duration of the show and displays current/next
+slides, notes and elapsed time. Only the current slide enters full screen.
+Navigation returns to the editor's last viewed slide without creating a version.
+
+HTML and native PPTX exports use the saved version. PPTX notes are copied from
+that snapshot into the converter's existing notes bodies with XML APIs; native
+slides, masters and relationships are retained. The browser download and the
+private stored copy contain identical bytes. Previous exports keep their own
+version association. PDF currently uses browser printing.
+
+Project chat renders public assistant replies and references. Users can attach
+PNG/JPEG/WebP images, paste/drop files or select owned media-library images.
+The Core service normalizes images and resolves authorized image references;
+the model receives descriptive context and catalogue URLs. A separate DeepSeek
+image-analysis call supplies reference descriptions before generation/editing.
+No arbitrary browser-provided image URL is fetched by this path.
+
+Focused checks cover these integration seams. Full cross-format AI generation,
+PowerPoint application/visual validation and operational acceptance remain
+separate release gates; a successful static build does not prove those flows.
 
 Do not mount the host Docker socket in the Creative service or engine. Do not
 publish port 7456. A trusted orchestration process provisions run sandboxes;
