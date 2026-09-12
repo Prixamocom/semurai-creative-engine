@@ -23,7 +23,7 @@ it('writes Unicode notes in slide order without changing native slides or relati
   expect([...xml.getElementsByTagNameNS(a, 't')].map(node => node.textContent)).toEqual([' Zażółć & <tag>', 'مرحبا', '', '1']);
   expect(await result.file('ppt/notesSlides/notesSlide2.xml')!.async('string')).not.toContain('Old note');
   const before = await JSZip.loadAsync(input, { base64: true });
-  for (const name of Object.keys(before.files).filter(name => !before.files[name].dir && !name.startsWith('ppt/notesSlides/'))) {
+  for (const name of Object.keys(before.files).filter(name => !before.files[name]!.dir && !name.startsWith('ppt/notesSlides/'))) {
     expect(await result.file(name)!.async('string')).toBe(await before.file(name)!.async('string'));
   }
 });
