@@ -1,0 +1,11 @@
+.media { font-size:11px; padding:4px 0 10px; }
+.actions { display:flex; gap:8px; align-items:center; margin-bottom:10px; }
+.media button { display:flex; align-items:center; gap:5px; border:0; border-radius:6px; background:transparent; color:var(--text-secondary); padding:4px; font-size:11px; height:auto; }
+.actions input { width:100%; min-width:0; padding:7px; border:1px solid var(--border); border-radius:7px; background:var(--bg-panel); color:inherit; }
+.grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; max-height:220px; overflow:auto; }
+.grid figure, .grid > button { position:relative; margin:0 0 10px; min-width:0; display:flex; flex-direction:column; gap:4px; }
+.grid img { width:100%; height:65px; object-fit:cover; border-radius:8px; }
+.grid figcaption,.grid span { width:100%; white-space:nowrap; text-overflow:ellipsis; overflow:hidden; }
+.grid figure button { position:absolute; right:3px; top:3px; background:var(--text-strong); color:var(--bg-panel); width:18px; min-width:18px; height:18px; border-radius:50%; padding:2px; }
+.auto { display:flex; align-items:center; gap:7px; margin-bottom:6px; color:var(--text-secondary); }
+.media section { margin-top:12px; }

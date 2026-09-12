@@ -12,11 +12,13 @@ import { studioPreviewSource, studioSlideCount } from './studio-preview';
 import { studioEditorCopy } from './studio-editor-copy';
 import { changeSlide, replaceStyleBlock, styleBlocks, type SlideOperation } from './studio-source';
 import { downloadStudioFile, exportStudioDocument } from './studio-export';
+import { renderMarkdown } from '../runtime/markdown';
+import { StudioMedia, type StudioImage } from './StudioMedia';
 import styles from './StudioEditor.module.css';
 
 interface StudioDocument { version: 1; kind: string; name: string; html: string; notes: (string | null)[]; brandContextHash?: string }
 interface SavedSource { id: string; version: number; document: StudioDocument; document_hash: string }
-interface Job { id: string; brief: string; status: string; retryable: boolean; base_version: number }
+interface Job { assistant_message?: string; references?: { id: string; title: string; thumbnail?: string }[]; id: string; brief: string; status: string; retryable: boolean; base_version: number }
 interface Version { id: string; version: number; kind: string; created_at: string }
 interface ProjectExport { id: string; format: 'html' | 'pptx'; version: number; title: string; created_at: string; mime_type: string; size: number; sha256: string }
 const terminal = new Set(['completed', 'failed', 'cancelled', 'conflicted']);
@@ -38,6 +40,10 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [prompt, setPrompt] = useState('');
+  const [images, setImages] = useState<StudioImage[]>([]);
+  const [useLibrary, setUseLibrary] = useState(true);
+  const [mediaBusy, setMediaBusy] = useState(false);
+  const chatLog = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<'preview' | 'edit' | 'source'>('preview');
   const [device, setDevice] = useState(0);
   const [zoom, setZoom] = useState(100);
@@ -87,6 +93,8 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
     return () => { cancelled = true; clearTimeout(timer); };
   }, [active?.id, refresh, c]);
   useEffect(() => { const warn = (event: BeforeUnloadEvent) => { if (dirty) { event.preventDefault(); event.returnValue = ''; } }; window.addEventListener('beforeunload', warn); return () => window.removeEventListener('beforeunload', warn); }, [dirty]);
+
+  useEffect(() => { const element = chatLog.current; if (element && element.scrollHeight - element.scrollTop - element.clientHeight < 300) element.scrollTop = element.scrollHeight; }, [jobs]);
 
   function change(next: StudioDocument) {
     const previous = latest.current;
@@ -138,12 +146,12 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
   }
   async function action(work: () => Promise<void>) { setBusy(true); setError(''); try { await work(); } catch (reason) { setError(reason instanceof Error ? reason.message : c.error); } finally { setBusy(false); } }
   async function send() {
-    if (!prompt.trim() || active) return;
+    if (!prompt.trim() || active || busy || mediaBusy) return;
     await action(async () => {
       const current = await saveCurrent(); requestKey.current ??= crypto.randomUUID();
       await api('jobs', 'POST', { operation: current ? 'edit' : 'generate', edit_mode: 'patch', quality: 'standard',
-        brief: prompt.trim(), base_version: current?.version ?? 0, base_revision: current?.document_hash ?? null, idempotency_key: requestKey.current });
-      requestKey.current = null; setPrompt(''); await refresh();
+        brief: prompt.trim(), reference_ids: images.map(item => item.id), use_media_library: useLibrary, base_version: current?.version ?? 0, base_revision: current?.document_hash ?? null, idempotency_key: requestKey.current });
+      requestKey.current = null; setPrompt(''); setImages([]); await refresh();
     });
   }
   function travel(direction: 'undo' | 'redo') {
@@ -205,11 +213,11 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
   return <main className={styles.editor} data-testid="semurai-studio-editor">
     <aside className={styles.chat + (showChat ? ' ' + styles.chatVisible : '')}>
       <header className={styles.chatHeader}><a href={safeStudioReturn(context)!} title={c.back}><ArrowLeft size={17} /></a><strong>{context.project.title}</strong><button className={styles.mobileChatToggle} onClick={() => setShowChat(false)} title={c.close}><X size={16} /></button><button onClick={onClose} title={c.close}><X size={16} /></button></header>
-      <div className={styles.conversation}><div className={styles.brand}><Sparkles size={20} /><span>{c.newProject}</span></div>
+      <div className={styles.conversation} ref={chatLog} role="log"><div className={styles.brand}><Sparkles size={20} /><span>{c.newProject}</span></div>
         {!jobs.length && <div className={styles.welcome}><h2>{c.empty}</h2><p>{c.emptyHelp}</p></div>}
-        {[...jobs].reverse().map(job => <div key={job.id} className={styles.turn}><p className={styles.userMessage}>{job.brief}</p><div className={styles.answer}><span className={styles.spark}><Sparkles size={15} /></span><div><strong>{job.status === 'completed' ? c.completed : job.status === 'failed' ? c.failed : job.status === 'cancelled' ? c.cancelled : job.status === 'conflicted' ? c.conflict : c.working}</strong>{!terminal.has(job.status) && <button onClick={() => { void action(async () => { await api('jobs/' + job.id + '/cancel', 'POST', {}); await refresh(); }); }}>{c.cancel}</button>}{job.retryable && <button onClick={() => { void action(async () => { await api('jobs/' + job.id + '/retry', 'POST', {}); await refresh(); }); }}>{c.retry}</button>}</div></div></div>)}
+        {[...jobs].reverse().map(job => <div key={job.id} className={styles.turn}><p className={styles.userMessage}>{job.brief}</p><div className={styles.references}>{job.references?.map(image => image.thumbnail && <img key={image.id} src={image.thumbnail} alt={image.title} title={image.title} />)}</div><div className={styles.answer}><span className={styles.spark}><Sparkles size={15} /></span><div>{job.assistant_message && <div className={styles.assistantText}>{renderMarkdown(job.assistant_message, { syntaxHighlight: false })}</div>}<strong>{job.status === 'completed' ? c.completed : job.status === 'failed' ? c.failed : job.status === 'cancelled' ? c.cancelled : job.status === 'conflicted' ? c.conflict : c.working}</strong>{!terminal.has(job.status) && <button onClick={() => { void action(async () => { await api('jobs/' + job.id + '/cancel', 'POST', {}); await refresh(); }); }}>{c.cancel}</button>}{job.retryable && <button onClick={() => { void action(async () => { await api('jobs/' + job.id + '/retry', 'POST', {}); await refresh(); }); }}>{c.retry}</button>}</div></div></div>)}
       </div>
-      <form className={styles.composer} onSubmit={event => { event.preventDefault(); void send(); }}><textarea aria-label={c.ask} placeholder={c.ask} value={prompt} onChange={event => { setPrompt(event.target.value); requestKey.current = null; }} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send(); } }} /><div><span>{c.chat}</span><Button type="submit" title={c.send} disabled={busy || !!active || !prompt.trim()}><ArrowUp size={18} /></Button></div></form><p className={styles.chatHint}>{c.allChanges}</p>
+      <form className={styles.composer} onSubmit={event => { event.preventDefault(); void send(); }}><StudioMedia images={images} onChange={value => { setImages(value); requestKey.current = null; }} useLibrary={useLibrary} onLibrary={value => { setUseLibrary(value); requestKey.current = null; }} api={api} locale={context.project.uiLocale} disabled={busy || !!active} onBusy={setMediaBusy} /><textarea aria-label={c.ask} placeholder={c.ask} value={prompt} onChange={event => { setPrompt(event.target.value); requestKey.current = null; }} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send(); } }} /><div><span>{c.chat}</span><Button type="submit" title={c.send} disabled={busy || mediaBusy || !!active || !prompt.trim()}><ArrowUp size={18} /></Button></div></form><p className={styles.chatHint}>{c.allChanges}</p>
     </aside>
     <section className={styles.workspace}>
       <header className={styles.header}><Button className={styles.mobileChatToggle} title={c.chat} onClick={() => setShowChat(true)}><MessageSquare size={16} /></Button><div className={styles.fileTab}><Code2 size={15} /><span>{context.project.title}</span></div><span className={styles.saveState}>{dirty ? c.unsaved : <><Check size={13} />{c.saved}</>}</span><button title={c.history} onClick={() => setShowHistory(!showHistory)}><History size={17} /></button><Button disabled={!dirty || busy} onClick={() => { void action(async () => { await saveCurrent(); }); }}>{c.save}</Button><details className={styles.exportMenu}><summary><Download size={15} />{c.export}</summary><div><Button disabled={!document || busy} onClick={() => { void exportFile('html'); }}>{c.downloadHtml}</Button>{deck && <Button disabled={!document || busy} onClick={() => { void exportFile('pptx'); }}>{c.downloadPptx}</Button>}<Button disabled={!document || busy} onClick={() => { if (document) void action(async () => { await exportStudioDocument(document.html, deck, 'print', path, context.project.title); }); }}>{c.print}</Button><Button onClick={() => { setShowExports(!showExports); setShowHistory(false); }}>{c.exportHistory}</Button></div></details></header>
