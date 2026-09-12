@@ -149,11 +149,12 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
     if (result) { change({ ...latest.current, html: result.html, notes: result.notes }); setSlide(result.active); setSelected(null); }
   }
   async function saveDraft() {
-    if (!selected) { patch({ kind: 'set-full-source', source: draft.fullSource }); return; }
+    if (!selected) { await action(async () => { await saveCurrent(); }); return; }
     if (selected.kind === 'text') patch({ kind: 'set-text', id: selected.id, value: draft.text });
     if (selected.kind === 'link') patch({ kind: 'set-link', id: selected.id, text: draft.text, href: draft.href });
     if (selected.kind === 'image') patch({ kind: 'set-image', id: selected.id, src: draft.src, alt: draft.alt });
     patch({ kind: 'set-style', id: selected.id, styles: draft.styles });
+    await action(async () => { await saveCurrent(); });
   }
   function download() {
     if (!document) return;
