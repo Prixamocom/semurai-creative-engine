@@ -44,6 +44,7 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
   const [useLibrary, setUseLibrary] = useState(true);
   const [mediaBusy, setMediaBusy] = useState(false);
   const chatLog = useRef<HTMLDivElement>(null);
+  const followChat = useRef(true);
   const [mode, setMode] = useState<'preview' | 'edit' | 'source'>('preview');
   const [device, setDevice] = useState(0);
   const [zoom, setZoom] = useState(100);
@@ -94,7 +95,7 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
   }, [active?.id, refresh, c]);
   useEffect(() => { const warn = (event: BeforeUnloadEvent) => { if (dirty) { event.preventDefault(); event.returnValue = ''; } }; window.addEventListener('beforeunload', warn); return () => window.removeEventListener('beforeunload', warn); }, [dirty]);
 
-  useEffect(() => { const element = chatLog.current; if (element && element.scrollHeight - element.scrollTop - element.clientHeight < 300) element.scrollTop = element.scrollHeight; }, [jobs]);
+  useEffect(() => { const element = chatLog.current; if (element && followChat.current) element.scrollTop = element.scrollHeight; }, [jobs]);
 
   function change(next: StudioDocument) {
     const previous = latest.current;
@@ -213,9 +214,9 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
   return <main className={styles.editor} data-testid="semurai-studio-editor">
     <aside className={styles.chat + (showChat ? ' ' + styles.chatVisible : '')}>
       <header className={styles.chatHeader}><a href={safeStudioReturn(context)!} title={c.back}><ArrowLeft size={17} /></a><strong>{context.project.title}</strong><button className={styles.mobileChatToggle} onClick={() => setShowChat(false)} title={c.close}><X size={16} /></button><button onClick={onClose} title={c.close}><X size={16} /></button></header>
-      <div className={styles.conversation} ref={chatLog} role="log"><div className={styles.brand}><Sparkles size={20} /><span>{c.newProject}</span></div>
+      <div className={styles.conversation} ref={chatLog} role="log" onScroll={event => { const element = event.currentTarget; followChat.current = element.scrollHeight - element.scrollTop - element.clientHeight < 160; }}><div className={styles.brand}><Sparkles size={20} /><span>{c.newProject}</span></div>
         {!jobs.length && <div className={styles.welcome}><h2>{c.empty}</h2><p>{c.emptyHelp}</p></div>}
-        {[...jobs].reverse().map(job => <div key={job.id} className={styles.turn}><p className={styles.userMessage}>{job.brief}</p><div className={styles.references}>{job.references?.map(image => image.thumbnail && <img key={image.id} src={image.thumbnail} alt={image.title} title={image.title} />)}</div><div className={styles.answer}><span className={styles.spark}><Sparkles size={15} /></span><div>{job.assistant_message && <div className={styles.assistantText}>{renderMarkdown(job.assistant_message, { syntaxHighlight: false })}</div>}<strong>{job.status === 'completed' ? c.completed : job.status === 'failed' ? c.failed : job.status === 'cancelled' ? c.cancelled : job.status === 'conflicted' ? c.conflict : c.working}</strong>{!terminal.has(job.status) && <button onClick={() => { void action(async () => { await api('jobs/' + job.id + '/cancel', 'POST', {}); await refresh(); }); }}>{c.cancel}</button>}{job.retryable && <button onClick={() => { void action(async () => { await api('jobs/' + job.id + '/retry', 'POST', {}); await refresh(); }); }}>{c.retry}</button>}</div></div></div>)}
+        {[...jobs].reverse().map(job => <div key={job.id} className={styles.turn}><p className={styles.userMessage}>{job.brief}</p><div className={styles.references}>{job.references?.map(image => image.thumbnail && <img key={image.id} src={image.thumbnail} alt={image.title} title={image.title} />)}</div><div className={styles.answer}><span className={styles.spark}><Sparkles size={15} /></span><div>{job.assistant_message && <div className={styles.assistantText}>{renderMarkdown(job.assistant_message.replace(/<od-done\b[^>]*\/?>/gi, ''), { syntaxHighlight: false })}</div>}<strong>{job.status === 'completed' ? c.completed : job.status === 'failed' ? c.failed : job.status === 'cancelled' ? c.cancelled : job.status === 'conflicted' ? c.conflict : c.working}</strong>{!terminal.has(job.status) && <button onClick={() => { void action(async () => { await api('jobs/' + job.id + '/cancel', 'POST', {}); await refresh(); }); }}>{c.cancel}</button>}{job.retryable && <button onClick={() => { void action(async () => { await api('jobs/' + job.id + '/retry', 'POST', {}); await refresh(); }); }}>{c.retry}</button>}</div></div></div>)}
       </div>
       <form className={styles.composer} onSubmit={event => { event.preventDefault(); void send(); }}><StudioMedia images={images} onChange={value => { setImages(value); requestKey.current = null; }} useLibrary={useLibrary} onLibrary={value => { setUseLibrary(value); requestKey.current = null; }} api={api} locale={context.project.uiLocale} disabled={busy || !!active} onBusy={setMediaBusy} /><textarea aria-label={c.ask} placeholder={c.ask} value={prompt} onChange={event => { setPrompt(event.target.value); requestKey.current = null; }} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send(); } }} /><div className={styles.composerFooter}><span>{c.chat}</span><Button type="submit" title={c.send} disabled={busy || mediaBusy || !!active || !prompt.trim()}><ArrowUp size={18} /></Button></div></form><p className={styles.chatHint}>{c.allChanges}</p>
     </aside>
@@ -239,3 +240,4 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
     </section>
   </main>;
 }
+
