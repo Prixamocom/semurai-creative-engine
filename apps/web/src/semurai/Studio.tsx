@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useI18n } from '../i18n';
 import { safeStudioReturn, studioSessionPath, type StudioContext } from './studio-context';
 import './studio.css';
+import { StudioEditor } from './StudioEditor';
 
 const copy = {
   en: { loading: 'Opening your project…', connected: 'Connected to Semurai', project: 'Your project',
@@ -62,6 +63,9 @@ export function SemuraiStudio() {
       else setUnavailable(true);
     } catch { setUnavailable(true); }
   }
+  // An expired grant must not discard a dirty document. Keep the editor mounted
+  // so the user can retain/export their work while reconnecting to Semurai.
+  if (context) return <StudioEditor context={context} expired={unavailable} onClose={() => { void closeSession(); }} />;
   return <main className="semurai-studio-shell" data-testid="semurai-studio">
     <header className="semurai-studio-header">
       <div className="semurai-studio-wordmark"><span aria-hidden="true">S</span>Semurai Creative <small>Studio</small></div>

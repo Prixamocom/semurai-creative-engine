@@ -1,0 +1,15 @@
+{
+  "name": "@open-design/artifact-renderer",
+  "version": "0.22.1",
+  "private": true,
+  "type": "module",
+  "description": "Shared browser-only artifact export normalization.",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && esbuild src/index.ts --bundle --platform=browser --format=iife --global-name=SemuraiDeckExport --target=es2022 --outfile=dist/browser.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": { "esbuild": "0.28.0", "typescript": "6.0.3" },
+  "engines": { "node": "~24" }
+}

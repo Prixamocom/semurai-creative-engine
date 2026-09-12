@@ -94,6 +94,10 @@ const residualAllowedExactPaths = new Set([
   // for editable PPTX export. It is loaded into the off-screen Chromium page as
   // an upstream browser asset, not compiled as project-owned TypeScript.
   "apps/desktop/vendor/dom-to-pptx/dom-to-pptx.bundle.js",
+  // Generated Studio distribution assets assembled by prepare-studio-export.ts
+  // from the pinned vendor bundle and artifact-renderer TypeScript build.
+  "apps/web/public/semurai-export/dom-to-pptx.js",
+  "apps/web/public/semurai-export/renderer.js",
   // PostCSS loads Tailwind through a web-local .mjs compatibility config entry.
   "apps/web/postcss.config.mjs",
   "scripts/bake-html-ppt-examples.mjs",

@@ -1259,7 +1259,7 @@ function injectPaletteBridge(
   return injectBeforeBodyEnd(doc, script);
 }
 
-function annotateManualEditSourcePaths(doc: string): string {
+export function annotateManualEditSourcePaths(doc: string): string {
   if (typeof DOMParser === 'undefined') return doc;
   try {
     const parsed = new DOMParser().parseFromString(doc, 'text/html');
@@ -1298,7 +1298,7 @@ function serializeHtmlDocument(doc: Document): string {
  * generated outside of OpenDesign and therefore carries no OD-specific
  * annotations.
  */
-function annotateMissingOdIds(doc: string): string {
+export function annotateMissingOdIds(doc: string): string {
   if (typeof DOMParser === 'undefined') return doc;
   try {
     const parsed = new DOMParser().parseFromString(doc, 'text/html');
