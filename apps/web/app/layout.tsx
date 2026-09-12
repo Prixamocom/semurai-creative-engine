@@ -2,16 +2,20 @@ import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import { I18nProvider } from '../src/i18n';
 import { AnalyticsProvider } from '../src/analytics/provider';
-import { PRODUCT_NAME } from '../src/semurai/branding';
+import { PRODUCT_NAME, SEMURAI_CREATIVE } from '../src/semurai/branding';
 import '@excalidraw/excalidraw/index.css';
 import '../src/index.css';
 import '../src/styles/home/index.css';
 
+const productIcon = SEMURAI_CREATIVE
+  ? 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#e63535"/><text x="32" y="47" text-anchor="middle" font-family="sans-serif" font-weight="700" font-size="44" fill="white">S</text></svg>')
+  : '/app-icon.png';
+
 export const metadata: Metadata = {
   title: PRODUCT_NAME,
   icons: {
-    icon: '/app-icon.png',
-    apple: '/app-icon.png',
+    icon: productIcon,
+    apple: productIcon,
   },
 };
 
@@ -43,7 +47,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body suppressHydrationWarning>
         <I18nProvider>
-          <AnalyticsProvider>{children}</AnalyticsProvider>
+          {SEMURAI_CREATIVE ? children : <AnalyticsProvider>{children}</AnalyticsProvider>}
         </I18nProvider>
       </body>
     </html>

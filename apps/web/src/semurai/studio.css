@@ -1,0 +1,24 @@
+.semurai-studio-shell { min-height: 100vh; background: #f8fafc; color: #182235; font-family: Inter, system-ui, sans-serif; }
+.semurai-studio-header { min-height: 76px; padding: 20px 36px; background: white; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.semurai-studio-wordmark { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 750; }
+.semurai-studio-wordmark span { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; color: white; background: #e33448; }
+.semurai-studio-wordmark small { font-size: 13px; color: #64748b; font-weight: 500; }
+.semurai-studio-header button { padding: 9px 15px; background: white; border: 1px solid #cbd5e1; border-radius: 9px; cursor: pointer; }
+.semurai-studio-content { max-width: 1040px; margin: auto; padding: 70px 28px; }
+.semurai-studio-content h1 { font-size: clamp(28px, 4vw, 42px); line-height: 1.2; font-weight: 750; margin: 22px 0 14px; }
+.semurai-studio-connected { display: flex; gap: 8px; align-items: center; color: #216f57; font-size: 14px; }
+.semurai-studio-connected span { width: 7px; height: 7px; background: #269371; border-radius: 50%; }
+.semurai-studio-subtitle { color: #64748b; font-size: 17px; line-height: 1.6; }
+.semurai-studio-project { background: white; border: 1px solid #e2e8f0; border-radius: 18px; margin-top: 34px; padding: 36px; display: grid; grid-template-columns: 180px 1fr; gap: 36px; }
+.semurai-studio-project h2 { font-size: 23px; font-weight: 650; margin: 0 0 12px; }
+.semurai-studio-project p { color: #64748b; line-height: 1.6; }
+.semurai-studio-project dl { display: flex; flex-wrap: wrap; gap: 30px; margin: 26px 0; }
+.semurai-studio-project dt { font-size: 12px; color: #64748b; margin-bottom: 6px; }
+.semurai-studio-project dd { margin: 0; font-weight: 650; }
+.semurai-studio-primary { display: inline-block; padding: 12px 18px; background: #dc3548; color: white; font-weight: 650; border-radius: 9px; margin-top: 12px; text-decoration: none; }
+.semurai-studio-artifact { display: flex; flex-direction: column; justify-content: center; gap: 14px; padding: 24px; background: #f1f5f9; border-radius: 12px; min-height: 180px; }
+.semurai-studio-artifact div { height: 13px; border-radius: 4px; background: #cbd5e1; }
+.semurai-studio-artifact div:first-child { width: 62%; height: 26px; background: #e9949e; }
+.semurai-studio-artifact div:last-child { width: 75%; }
+.semurai-studio-shell :focus-visible { outline: 3px solid #3b82f6; outline-offset: 4px; }
+@media (max-width: 620px) { .semurai-studio-header { padding: 18px; flex-wrap: wrap; } .semurai-studio-content { padding: 40px 20px; } .semurai-studio-project { grid-template-columns: 1fr; padding: 24px; } .semurai-studio-artifact { display: none; } }
