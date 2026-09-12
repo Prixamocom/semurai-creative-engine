@@ -16,7 +16,7 @@ export function StudioPresenter({ source, notes, initialSlide, locale, onClose }
 }) {
   const c = copy[locale]; const count = useMemo(() => studioSlideCount(source), [source]);
   const [slide, setSlide] = useState(Math.max(0, Math.min(initialSlide, count - 1)));
-  const current = useRef<HTMLIFrameElement>(null); const stage = useRef<HTMLDivElement>(null); const controls = useRef<HTMLDivElement>(null);
+  const current = useRef<HTMLIFrameElement>(null); const nextFrame = useRef<HTMLIFrameElement>(null); const stage = useRef<HTMLDivElement>(null); const controls = useRef<HTMLDivElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null); const slideRef = useRef(slide); slideRef.current = slide;
   const [running, setRunning] = useState(true); const [seconds, setSeconds] = useState(0); const [error, setError] = useState('');
   const accumulated = useRef(0); const started = useRef(Date.now());
@@ -69,7 +69,7 @@ export function StudioPresenter({ source, notes, initialSlide, locale, onClose }
     <div ref={controls} className={styles.layout}>
       <header><strong>{c.title}</strong><div className={styles.timer}><output aria-label={c.timer}>{time}</output><Button title={running ? c.pause : c.resume} onClick={() => running ? pause() : setRunning(true)}>{running ? <Pause size={16} /> : <Play size={16} />}</Button><Button title={c.reset} onClick={() => { accumulated.current = 0; started.current = Date.now(); setSeconds(0); }}><RotateCcw size={16} /></Button></div><Button ref={closeButton} title={c.close} onClick={() => onClose(slide)}><X size={20} /></Button></header>
       <div className={styles.content}><section className={styles.current}><div ref={stage} className={styles.stage}><iframe ref={current} title={c.current} tabIndex={-1} sandbox="allow-scripts" srcDoc={sourceDoc} onLoad={() => current.current?.contentWindow?.postMessage({ type: 'od:slide', action: 'go', index: slideRef.current }, '*')} /></div><nav><Button title={c.previous} disabled={slide <= 0} onClick={() => go(slide - 1)}><ArrowLeft size={18} /></Button><select aria-label={c.current} value={slide} onChange={event => go(Number(event.target.value))}>{Array.from({ length: count }, (_, i) => <option key={i} value={i}>{i + 1} / {count}</option>)}</select><Button title={c.next} disabled={slide >= count - 1} onClick={() => go(slide + 1)}><ArrowRight size={18} /></Button><Button className={styles.fullscreen} title={c.fullscreen} onClick={() => { setError(''); void stage.current?.requestFullscreen().catch(() => setError(c.fullscreenError)); }}><Maximize2 size={16} />{c.fullscreen}</Button></nav></section>
-      <aside><section className={styles.next}><h2>{c.next}</h2>{nextDoc ? <iframe title={c.next} tabIndex={-1} sandbox="allow-scripts" srcDoc={nextDoc} /> : <p>{c.end}</p>}</section><section className={styles.notes}><h2>{c.notes}</h2><p>{notes[slide] || c.empty}</p></section></aside></div>
+      <aside><section className={styles.next}><h2>{c.next}</h2>{nextDoc ? <iframe ref={nextFrame} title={c.next} tabIndex={-1} sandbox="allow-scripts" srcDoc={nextDoc} onLoad={() => nextFrame.current?.contentWindow?.postMessage({ type: 'od:slide', action: 'go', index: slideRef.current + 1 }, '*')} /> : <p>{c.end}</p>}</section><section className={styles.notes}><h2>{c.notes}</h2><p>{notes[slide] || c.empty}</p></section></aside></div>
       <footer>{error ? <span role="alert">{error}</span> : c.hint}</footer>
     </div>
   </Dialog>;
