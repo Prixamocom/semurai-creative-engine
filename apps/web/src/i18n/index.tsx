@@ -30,6 +30,7 @@ import { th } from './locales/th';
 import { it } from './locales/it';
 import { getOpenDesignHost } from '@open-design/host';
 import { LOCALES, type Dict, type Locale } from './types';
+import { productLabel } from '../semurai/branding';
 
 export { LOCALES, LOCALE_LABEL } from './types';
 export type { Locale } from './types';
@@ -106,7 +107,7 @@ export function tForLanguageTag(
   if (!locale) return null;
   const dict = DICTS[locale] ?? en;
   return (key, vars) => {
-    const raw = dict[key] ?? en[key] ?? key;
+    const raw = productLabel(dict[key] ?? en[key] ?? key);
     if (!vars) return raw;
     return raw.replace(/\{(\w+)\}/g, (_, name: string) => {
       const v = vars[name];
@@ -183,7 +184,7 @@ const FALLBACK_I18N: I18nContextValue = {
   locale: 'en',
   setLocale: () => { },
   t: (key, vars) => {
-    const raw = en[key] ?? key;
+    const raw = productLabel(en[key] ?? key);
     if (!vars) return raw;
     return raw.replace(/\{(\w+)\}/g, (_, n: string) => {
       const v = vars[n];
@@ -238,7 +239,7 @@ export function I18nProvider({ initial, children }: ProviderProps) {
   const t = useCallback(
     (key: DictKey, vars?: Record<string, string | number>): string => {
       const dict = DICTS[locale] ?? en;
-      const raw = dict[key] ?? en[key] ?? key;
+      const raw = productLabel(dict[key] ?? en[key] ?? key);
       if (!vars) return raw;
       return raw.replace(/\{(\w+)\}/g, (_, name: string) => {
         const v = vars[name];

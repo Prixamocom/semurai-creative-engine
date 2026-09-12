@@ -1,0 +1,61 @@
+# Semurai integration boundary
+
+This fork implements the internal engine for Semurai Creative. Laravel owns
+identity, authorization, projects, versions, usage and the existing MySQL
+database. Semurai object storage owns permanent binaries and source bundles.
+The daemon database and working files are recoverable engine state only.
+
+## Provenance
+
+- Origin: https://github.com/Prixamocom/semurai-creative-engine.git
+- Upstream: https://github.com/nexu-io/open-design.git
+- Base inspected on 2026-09-12: `ad9078b87c2d08e537ca3e041c46c124e7380c9c`
+- Base package version: 0.22.1. No release tag directly names that commit.
+- Branch: `feature/semurai-integration`
+- Latest upstream release at audit: `open-design-v0.22.2`; main and release
+  histories differ. Never infer deployed revision from package version alone.
+
+## Integration seams
+
+`apps/web/src/semurai/branding.ts` isolates optional UI branding. Build with
+`NEXT_PUBLIC_SEMURAI_CREATIVE=1` for Semurai; the default upstream mode remains
+available for comparison. Bundled labels are adapted before variable
+interpolation, so user content is not rewritten. This initial seam does not
+alone make the entire Studio ready for public exposure: project-scoped SSO,
+restricted navigation and authenticated route proxying are required first.
+
+Use daemon `/api/projects`, `/api/runs`, run events/result-package and scoped
+project file APIs behind `OpenDesignCreativeEngine` in the Creative service.
+The public application must never consume these upstream contracts directly.
+Consult `docs/orchestrator-workspaces.md` and the root AGENTS data-directory
+contract for scratch workspace metadata. Scratch provenance alone is not a
+security boundary; run-level process/container and file isolation are required.
+
+Keep native Semurai Canvas in Nuxt/Vue for graphics, carousels and ads. Reuse
+the current Studio preview, manual edit and deck export capabilities only for
+landing, presentation and document workspaces. Prefer editable PPTX exports;
+validate the actual PowerPoint object structure in acceptance tests.
+
+At the pinned upstream revision, `import-export-routes.ts` explicitly requires
+the desktop renderer for editable PPTX and raster exports. A bare daemon image
+does not provide that renderer. Semurai must adapt the existing dom-to-pptx
+rendering path to an isolated server renderer before claiming presentation
+exports work; the baseline engine health check does not validate exports.
+
+Do not mount the host Docker socket in the Creative service or engine. Do not
+publish port 7456. A trusted orchestration process provisions run sandboxes;
+only the authenticated Creative service may reach their engine endpoints.
+Use least-privilege per-run storage URLs and provider credentials. Do not set
+upstream analytics or tracing credentials to send private runs to third parties.
+
+## Upstream updates
+
+1. Fetch upstream and inspect the chosen release and security changes.
+2. Merge the explicitly selected SHA into a separate integration branch.
+3. Preserve LICENSE, source notices and THIRD_PARTY_NOTICES.md.
+4. Run guard, typechecks, relevant tests, container build and internal health.
+5. Run Semurai tenant isolation, save/reload, export and provider failure tests.
+6. Deploy staging, then a digest-pinned production image only after gates pass.
+7. Record fork commit, upstream SHA, base-image digest and rollback image.
+
+Do not merge to main or force-push automatically.

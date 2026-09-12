@@ -17,6 +17,8 @@ ENV https_proxy=${https_proxy}
 ENV no_proxy=${no_proxy}
 ENV NO_PROXY=${NO_PROXY}
 ENV CI=true
+ARG NEXT_PUBLIC_SEMURAI_CREATIVE=0
+ENV NEXT_PUBLIC_SEMURAI_CREATIVE=${NEXT_PUBLIC_SEMURAI_CREATIVE}
 
 RUN apk add --no-cache python3 make g++
 
@@ -91,6 +93,7 @@ RUN apk add --no-cache tini poppler-utils bash git && \
 
 WORKDIR /app
 COPY --from=build --chown=open-design:open-design /app/deploy/daemon ./apps/daemon
+COPY LICENSE THIRD_PARTY_NOTICES.md ./
 COPY --from=build --chown=open-design:open-design /app/apps/web/out ./apps/web/out
 COPY --from=build --chown=open-design:open-design /app/skills ./skills
 COPY --from=build --chown=open-design:open-design /app/design-systems ./design-systems

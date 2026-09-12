@@ -48,7 +48,7 @@ const App = dynamic(() => import('../../src/App').then((m) => m.App), {
   loading: () => (
     <div className="od-loading-shell">
       <MatrixLoader />
-      <span>Loading OpenDesign…</span>
+      <span aria-hidden="true">…</span>
     </div>
   ),
 });
