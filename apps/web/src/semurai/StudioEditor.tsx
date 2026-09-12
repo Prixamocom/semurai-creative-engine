@@ -18,6 +18,7 @@ interface StudioDocument { version: 1; kind: string; name: string; html: string;
 interface SavedSource { id: string; version: number; document: StudioDocument; document_hash: string }
 interface Job { id: string; brief: string; status: string; retryable: boolean; base_version: number }
 interface Version { id: string; version: number; kind: string; created_at: string }
+interface ProjectExport { id: string; format: 'html' | 'pptx'; version: number; title: string; created_at: string; mime_type: string; size: number; sha256: string }
 const terminal = new Set(['completed', 'failed', 'cancelled', 'conflicted']);
 
 export function StudioEditor({ context, expired = false, onClose }: { context: StudioContext; expired?: boolean; onClose: () => void }) {
@@ -32,6 +33,7 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
   const [saved, setSaved] = useState<SavedSource | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [versions, setVersions] = useState<Version[]>([]);
+  const [exports, setExports] = useState<ProjectExport[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -41,6 +43,7 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
   const [zoom, setZoom] = useState(100);
   const [slide, setSlide] = useState(0);
   const [showHistory, setShowHistory] = useState(false);
+  const [showExports, setShowExports] = useState(false);
   const [showLayers, setShowLayers] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [sourceTab, setSourceTab] = useState<'html' | 'css'>('html');
@@ -68,8 +71,9 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
     setSaved(value); setDocument(value?.document ?? null); setUndo([]); setRedo([]); setSelected(null);
   }
   const refresh = useCallback(async (initial = false) => {
-    const [source, jobList, history] = await Promise.all([api('document'), api('jobs'), api('versions')]);
+    const [source, jobList, history, files] = await Promise.all([api('document'), api('jobs'), api('versions'), api('exports')]);
     setJobs(jobList.data); setVersions(history.data);
+    setExports(files.data);
     const next = source.data as SavedSource | null;
     if (initial || JSON.stringify(latest.current) === JSON.stringify(baseline.current?.document ?? null)) adopt(next);
     else if (next?.version !== baseline.current?.version) setError(c.conflict);
@@ -162,9 +166,36 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
     patch({ kind: 'set-style', id: selected.id, styles: draft.styles });
     await action(async () => { await saveCurrent(); });
   }
-  function download() {
-    if (!document) return;
-    downloadStudioFile(document.html, 'text/html;charset=utf-8', context.project.title, '.html');
+  async function exportFile(format: 'html' | 'pptx') {
+    if (format === 'html' && expired && latest.current) {
+      downloadStudioFile(latest.current.html, 'text/html;charset=utf-8', context.project.title, '.html');
+      return;
+    }
+    await action(async () => {
+      const snapshot = await saveCurrent();
+      if (!snapshot) return;
+      const b64 = format === 'pptx' ? await exportStudioDocument(snapshot.document.html, true, 'pptx', path, context.project.title) : undefined;
+      if (format === 'pptx' && !b64) throw new Error(c.error);
+      const content = b64 ? Uint8Array.from(atob(b64), character => character.charCodeAt(0)) : snapshot.document.html;
+      const mime = format === 'html' ? 'text/html;charset=utf-8' : 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+      try {
+        await api('exports', 'POST', { format, base_version: snapshot.version, base_revision: snapshot.document_hash, ...(b64 ? { file_base64: b64 } : {}) });
+        setExports((await api('exports')).data);
+      } catch {
+        downloadStudioFile(content, mime, context.project.title, '.' + format);
+        throw new Error(c.exportSaveFailed);
+      }
+      downloadStudioFile(content, mime, context.project.title, '.' + format);
+    });
+  }
+  async function downloadExport(file: ProjectExport) {
+    await action(async () => {
+      const result = (await api('exports/' + file.id + '/download')).data;
+      const bytes = Uint8Array.from(atob(result.file_base64), character => character.charCodeAt(0));
+      const digest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(byte => byte.toString(16).padStart(2, '0')).join('');
+      if (digest !== file.sha256) throw new Error(c.error);
+      downloadStudioFile(bytes, file.mime_type, file.title + '-v' + file.version, '.' + file.format);
+    });
   }
   async function pickImage(file: File): Promise<string | null> {
     if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 1_000_000) { setError(c.error); return null; }
@@ -181,7 +212,7 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
       <form className={styles.composer} onSubmit={event => { event.preventDefault(); void send(); }}><textarea aria-label={c.ask} placeholder={c.ask} value={prompt} onChange={event => { setPrompt(event.target.value); requestKey.current = null; }} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send(); } }} /><div><span>{c.chat}</span><Button type="submit" title={c.send} disabled={busy || !!active || !prompt.trim()}><ArrowUp size={18} /></Button></div></form><p className={styles.chatHint}>{c.allChanges}</p>
     </aside>
     <section className={styles.workspace}>
-      <header className={styles.header}><Button className={styles.mobileChatToggle} title={c.chat} onClick={() => setShowChat(true)}><MessageSquare size={16} /></Button><div className={styles.fileTab}><Code2 size={15} /><span>{context.project.title}</span></div><span className={styles.saveState}>{dirty ? c.unsaved : <><Check size={13} />{c.saved}</>}</span><button title={c.history} onClick={() => setShowHistory(!showHistory)}><History size={17} /></button><Button disabled={!dirty || busy} onClick={() => { void action(async () => { await saveCurrent(); }); }}>{c.save}</Button><details className={styles.exportMenu}><summary><Download size={15} />{c.export}</summary><div><Button disabled={!document || busy} onClick={download}>{c.downloadHtml}</Button>{deck && <Button disabled={!document || busy} onClick={() => { if (document) void action(() => exportStudioDocument(document.html, true, 'pptx', path, context.project.title)); }}>{c.downloadPptx}</Button>}<Button disabled={!document || busy} onClick={() => { if (document) void action(() => exportStudioDocument(document.html, deck, 'print', path, context.project.title)); }}>{c.print}</Button></div></details></header>
+      <header className={styles.header}><Button className={styles.mobileChatToggle} title={c.chat} onClick={() => setShowChat(true)}><MessageSquare size={16} /></Button><div className={styles.fileTab}><Code2 size={15} /><span>{context.project.title}</span></div><span className={styles.saveState}>{dirty ? c.unsaved : <><Check size={13} />{c.saved}</>}</span><button title={c.history} onClick={() => setShowHistory(!showHistory)}><History size={17} /></button><Button disabled={!dirty || busy} onClick={() => { void action(async () => { await saveCurrent(); }); }}>{c.save}</Button><details className={styles.exportMenu}><summary><Download size={15} />{c.export}</summary><div><Button disabled={!document || busy} onClick={() => { void exportFile('html'); }}>{c.downloadHtml}</Button>{deck && <Button disabled={!document || busy} onClick={() => { void exportFile('pptx'); }}>{c.downloadPptx}</Button>}<Button disabled={!document || busy} onClick={() => { if (document) void action(async () => { await exportStudioDocument(document.html, deck, 'print', path, context.project.title); }); }}>{c.print}</Button><Button onClick={() => { setShowExports(!showExports); setShowHistory(false); }}>{c.exportHistory}</Button></div></details></header>
       <div className={styles.toolbar}><div className={styles.segment}><button className={mode !== 'source' ? styles.active : ''} onClick={() => setMode('preview')}><Eye size={15} />{c.preview}</button><button className={mode === 'source' ? styles.active : ''} onClick={() => setMode('source')}><Code2 size={15} />{c.source}</button></div><select value={device} onChange={event => setDevice(Number(event.target.value))} aria-label={c.desktop}><option value={0}>{c.desktop}</option><option value={768}>{c.tablet}</option><option value={390}>{c.mobile}</option></select><div className={styles.spacer} /><button disabled={!undo.length} title={c.undo} onClick={() => travel('undo')}><RotateCcw size={16} /></button><button disabled={!redo.length} title={c.redo} onClick={() => travel('redo')}><RotateCw size={16} /></button><button className={showLayers ? styles.active : ''} title={c.layers} onClick={() => { setShowLayers(!showLayers); setMode('edit'); }}><Layers size={16} /></button><button className={mode === 'edit' ? styles.active : ''} onClick={() => setMode(mode === 'edit' ? 'preview' : 'edit')}><Pencil size={15} />{c.edit}</button><button title={deck ? c.present : c.fullscreen} onClick={() => { void viewport.current?.requestFullscreen(); }}><Maximize2 size={16} /></button><select value={zoom} aria-label={c.zoom} onChange={event => setZoom(Number(event.target.value))}>{[50, 75, 100, 125, 150].map(value => <option key={value} value={value}>{value}%</option>)}</select></div>
       {expired && <div className={styles.error} role="alert">{c.expired}<a href={safeStudioReturn(context)!} target="_blank" rel="noopener noreferrer">{c.back}</a></div>}
       {error && <div className={styles.error} role="alert">{error}<button onClick={() => setError('')}><X size={15} /></button></div>}
@@ -194,6 +225,7 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
         </div>
         {mode === 'edit' && <div className={styles.inspector}><ManualEditPanel targets={targets} selectedTarget={selected} draft={draft} history={[]} error={null} canUndo={!!undo.length} canRedo={!!redo.length} busy={busy} onSelectTarget={pick} onDraftChange={setDraft} onStyleChange={(id, values) => patch({ kind: 'set-style', id, styles: values })} onApplyPatch={patch} onPickImage={pickImage} onError={setError} onClearSelection={() => setSelected(null)} onCancelDraft={() => selected && pick(selected)} onSaveDraft={() => { void saveDraft(); }} onResetDraft={() => selected && pick(selected)} onUndo={() => travel('undo')} onRedo={() => travel('redo')} onExit={() => setMode('preview')} /></div>}
         {showHistory && <aside className={styles.history}><h3>{c.history}</h3>{versions.map(version => <div key={version.id}><strong>{c.version} {version.version}</strong><small>{new Date(version.created_at).toLocaleString(context.project.uiLocale)}</small><Button disabled={busy || version.version === saved?.version || dirty} onClick={() => { void action(async () => { await api('versions/' + version.id + '/restore', 'POST', { base_version: saved?.version, base_revision: saved?.document_hash }); await refresh(true); }); }}>{c.restore}</Button></div>)}</aside>}
+        {showExports && <aside className={styles.history}><h3>{c.exportHistory}</h3>{!exports.length && <p>{c.noExports}</p>}{exports.map(file => <div key={file.id}><strong>{file.format.toUpperCase()} · {c.version} {file.version}</strong><small>{new Date(file.created_at).toLocaleString(context.project.uiLocale)} · {Math.max(1, Math.round(file.size / 1024))} KB</small><Button disabled={busy} onClick={() => { void downloadExport(file); }}><Download size={14} />{c.downloadAgain}</Button></div>)}</aside>}
       </div>
       <footer className={styles.footer}><span>{context.project.locale.toUpperCase()} · {context.project.artifactType}</span><span>{saved ? c.version + ' ' + saved.version : 'Semurai Creative'}</span></footer>
     </section>

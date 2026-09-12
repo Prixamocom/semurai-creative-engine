@@ -39,7 +39,7 @@ export async function exportStudioDocument(source: string, deck: boolean, kind: 
   const bodyEnd = findRealTagOffset(html, HTML_TAG_PATTERNS.bodyClose);
   if (bodyEnd < 0) throw new Error('Invalid export document');
   iframe.srcdoc = html.slice(0, bodyEnd) + injected + '<script>' + execute + '</script>' + html.slice(bodyEnd);
-  await new Promise<void>((resolve, reject) => {
+  return new Promise<string | undefined>((resolve, reject) => {
     const cleanup = () => { clearTimeout(timeout); window.removeEventListener('message', receive); iframe.remove(); };
     const receive = (event: MessageEvent) => {
       if (event.source !== iframe.contentWindow || event.data?.type !== 'semurai-export' || event.data.token !== token) return;
@@ -47,11 +47,10 @@ export async function exportStudioDocument(source: string, deck: boolean, kind: 
       if (error) { cleanup(); reject(new Error('Export failed')); return; }
       if (typeof b64 === 'string') {
         try {
-          const bytes = Uint8Array.from(atob(b64), character => character.charCodeAt(0));
-          downloadStudioFile(bytes, 'application/vnd.openxmlformats-officedocument.presentationml.presentation', title, '.pptx');
+          atob(b64);
         } catch { cleanup(); reject(new Error('Export failed')); return; }
       } else if (!printed) { cleanup(); reject(new Error('Export failed')); return; }
-      cleanup(); resolve();
+      cleanup(); resolve(b64);
     };
     const timeout = setTimeout(() => { cleanup(); reject(new Error('Export timed out')); }, kind === 'print' ? 600_000 : 120_000);
     window.addEventListener('message', receive); document.body.appendChild(iframe);
