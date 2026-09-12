@@ -50,6 +50,11 @@ upstream analytics or tracing credentials to send private runs to third parties.
 
 ## Upstream updates
 
+The container retains Markdown license/notice files in installed dependencies
+and includes the separate design-template registry. The upstream recipe's
+blanket Markdown deletion and omitted design templates are not carried into
+the Semurai image.
+
 1. Fetch upstream and inspect the chosen release and security changes.
 2. Merge the explicitly selected SHA into a separate integration branch.
 3. Preserve LICENSE, source notices and THIRD_PARTY_NOTICES.md.

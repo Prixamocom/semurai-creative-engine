@@ -58,8 +58,6 @@ RUN pnpm --filter @open-design/daemon build && \
       -name ".github" \
     \) -prune -exec rm -rf '{}' + && \
     find /app/deploy/daemon/node_modules -type f \( \
-      -name "*.md" -o \
-      -name "*.markdown" -o \
       -name "*.d.ts" -o \
       -name "*.d.cts" -o \
       -name "*.d.mts" -o \
@@ -74,6 +72,7 @@ RUN pnpm --filter @open-design/daemon build && \
 # differs from the repo root (Railway, CI runners with a subdirectory
 # context, etc.).
 COPY skills ./skills
+COPY design-templates ./design-templates
 COPY design-systems ./design-systems
 COPY craft ./craft
 COPY prompt-templates ./prompt-templates
@@ -96,6 +95,7 @@ COPY --from=build --chown=open-design:open-design /app/deploy/daemon ./apps/daem
 COPY LICENSE THIRD_PARTY_NOTICES.md ./
 COPY --from=build --chown=open-design:open-design /app/apps/web/out ./apps/web/out
 COPY --from=build --chown=open-design:open-design /app/skills ./skills
+COPY --from=build --chown=open-design:open-design /app/design-templates ./design-templates
 COPY --from=build --chown=open-design:open-design /app/design-systems ./design-systems
 COPY --from=build --chown=open-design:open-design /app/craft ./craft
 COPY --from=build --chown=open-design:open-design /app/prompt-templates ./prompt-templates
