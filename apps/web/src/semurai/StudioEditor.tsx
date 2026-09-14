@@ -10,7 +10,7 @@ import type { ManualEditPatch, ManualEditTarget } from '../edit-mode/types';
 import { safeStudioReturn, studioSessionPath, type StudioContext } from './studio-context';
 import { studioPreviewSource, studioSlideCount } from './studio-preview';
 import { studioEditorCopy } from './studio-editor-copy';
-import { changeSlide, replaceStyleBlock, styleBlocks, type SlideOperation } from './studio-source';
+import { changeSlide, replaceStyleBlock, styleBlocks, studioFileSource, replaceStudioFile, type SlideOperation } from './studio-source';
 import { downloadStudioFile, exportStudioDocument } from './studio-export';
 import { StudioChatTurn } from './StudioChatTurn';
 import type { StudioChatJob, StudioChatMessage } from './studio-chat';
@@ -21,7 +21,7 @@ import { StudioImageMenu } from './StudioImageMenu';
 import { placeStudioImage } from './studio-images';
 import styles from './StudioEditor.module.css';
 
-interface StudioDocument { version: 1; kind: string; name: string; html: string; notes: (string | null)[]; brandContextHash?: string }
+interface StudioDocument { version: 1; kind: string; name: string; html: string; files?: { path: string; content: string }[]; notes: (string | null)[]; brandContextHash?: string }
 interface SavedSource { id: string; version: number; document: StudioDocument; document_hash: string }
 type Job = StudioChatJob;
 interface Version { id: string; version: number; kind: string; created_at: string }
@@ -36,6 +36,8 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
   const viewport = useRef<HTMLDivElement>(null);
   const latest = useRef<StudioDocument | null>(null);
   const baseline = useRef<SavedSource | null>(null);
+  const [activeFile, setActiveFile] = useState('index.html');
+  const activeFileRef = useRef('index.html');
   const [document, setDocument] = useState<StudioDocument | null>(null);
   const [presentation, setPresentation] = useState<{ document: StudioDocument; slide: number } | null>(null);
   const [saved, setSaved] = useState<SavedSource | null>(null);
@@ -72,8 +74,9 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
   const requestKey = useRef<string | null>(null);
   const active = jobs.find(job => !terminal.has(job.status));
   const dirty = Boolean(document && JSON.stringify(document) !== JSON.stringify(saved?.document));
-  const count = useMemo(() => document && deck ? studioSlideCount(document.html) : 0, [document?.html, deck]);
-  const sheets = useMemo(() => document ? styleBlocks(document.html) : [], [document?.html]);
+  const visibleHtml = document ? studioFileSource(document, activeFile) : '';
+  const count = useMemo(() => document && deck ? studioSlideCount(visibleHtml) : 0, [visibleHtml, deck]);
+  const sheets = useMemo(() => document ? styleBlocks(visibleHtml) : [], [visibleHtml]);
 
   const api = useCallback(async (endpoint: string, method = 'GET', body?: unknown) => {
     const response = await fetch(path + 'project/' + endpoint, { method, credentials: 'same-origin', cache: 'no-store',
@@ -83,6 +86,7 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
   }, [path, c]);
 
   function adopt(value: SavedSource | null) {
+    if (activeFileRef.current !== 'index.html' && !value?.document.files?.some(file => file.path === activeFileRef.current)) { activeFileRef.current = 'index.html'; setActiveFile('index.html'); }
     baseline.current = value; latest.current = value?.document ?? null;
     setSaved(value); setDocument(value?.document ?? null); setUndo([]); setRedo([]); setSelected(null);
   }
@@ -134,17 +138,18 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
 
   function change(next: StudioDocument) {
     const previous = latest.current;
+    if (previous && activeFileRef.current !== 'index.html') next = replaceStudioFile({ ...next, html: previous.html }, activeFileRef.current, next.html);
     if (previous) setUndo(items => [...items.slice(-49), previous]);
     latest.current = next; setDocument(next); setRedo([]); setError('');
   }
   function patch(value: ManualEditPatch) {
     if (!latest.current) return;
-    const result = applyManualEditPatch(latest.current.html, value);
+    const result = applyManualEditPatch(studioFileSource(latest.current, activeFileRef.current), value);
     if (!result.ok) { setError(c.error); return; }
-    if (result.source !== latest.current.html) change({ ...latest.current, html: result.source });
+    if (result.source !== studioFileSource(latest.current, activeFileRef.current)) change({ ...latest.current, html: result.source });
   }
   function pick(target: ManualEditTarget) {
-    setSelected(target); setDraft({ ...emptyManualEditDraft(latest.current?.html), ...target.fields,
+    setSelected(target); setDraft({ ...emptyManualEditDraft(latest.current ? studioFileSource(latest.current, activeFileRef.current) : undefined), ...target.fields,
       text: target.fields.text ?? target.text, href: target.fields.href ?? '', src: target.fields.src ?? '', alt: target.fields.alt ?? '',
       styles: target.styles, outerHtml: target.outerHtml, attributesText: JSON.stringify(target.attributes, null, 2) });
     frame.current?.contentWindow?.postMessage({ type: 'od-edit-selected-target', id: target.id }, '*');
@@ -164,12 +169,12 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
   }, [count]);
   // Deck navigation uses the upstream message protocol; rebuilding srcdoc on
   // every reported slide would reset the runtime and undo the user's navigation.
-  const srcdoc = useMemo(() => document ? studioPreviewSource(document.html, slide, mode === 'edit', deck) : '', [document?.html, mode, deck]);
+  const srcdoc = useMemo(() => document ? studioPreviewSource(visibleHtml, slide, mode === 'edit', deck) : '', [visibleHtml, mode, deck]);
   function navigateSlide(index: number) {
     setSlide(index);
     frame.current?.contentWindow?.postMessage({ type: 'od:slide', action: 'go', index }, '*');
   }
-  const thumbnail = useCallback((index: number) => studioPreviewSource(document?.html ?? '', index, false, true), [document?.html]);
+  const thumbnail = useCallback((index: number) => studioPreviewSource(visibleHtml || '', index, false, true), [visibleHtml]);
   async function saveCurrent(): Promise<SavedSource | null> {
     const current = latest.current;
     if (!current || JSON.stringify(current) === JSON.stringify(baseline.current?.document)) return baseline.current;
@@ -186,7 +191,7 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
     await action(async () => {
       const current = await saveCurrent(); requestKey.current ??= crypto.randomUUID();
       await api('jobs', 'POST', { operation: current ? 'edit' : 'generate', edit_mode: 'patch', quality: 'standard',
-        brief: prompt.trim(), reference_ids: images.map(item => item.id), use_media_library: useLibrary, base_version: current?.version ?? 0, base_revision: current?.document_hash ?? null, idempotency_key: requestKey.current });
+        brief: (activeFileRef.current === 'index.html' ? '' : `Edit the file ${activeFileRef.current} within this project. Preserve other files.\n`) + prompt.trim(), reference_ids: images.map(item => item.id), use_media_library: useLibrary, base_version: current?.version ?? 0, base_revision: current?.document_hash ?? null, idempotency_key: requestKey.current });
       requestKey.current = null; setPrompt(''); setImages([]); await refresh();
     });
   }
@@ -199,7 +204,7 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
   }
   function slideAction(operation: SlideOperation) {
     if (!latest.current) return;
-    const result = changeSlide(latest.current.html, latest.current.notes, slide, operation);
+    const result = changeSlide(studioFileSource(latest.current, activeFileRef.current), latest.current.notes, slide, operation);
     if (result) { change({ ...latest.current, html: result.html, notes: result.notes }); setSlide(result.active); setSelected(null); }
   }
   async function saveDraft() {
@@ -212,18 +217,18 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
   }
   async function exportFile(format: 'html' | 'pptx') {
     if (format === 'html' && expired && latest.current) {
-      downloadStudioFile(latest.current.html, 'text/html;charset=utf-8', context.project.title, '.html');
+      downloadStudioFile(studioFileSource(latest.current, activeFileRef.current), 'text/html;charset=utf-8', context.project.title, '.html');
       return;
     }
     await action(async () => {
       const snapshot = await saveCurrent();
       if (!snapshot) return;
-      const b64 = format === 'pptx' ? await exportStudioDocument(snapshot.document.html, true, 'pptx', path, context.project.title, snapshot.document.notes) : undefined;
+      const b64 = format === 'pptx' ? await exportStudioDocument(studioFileSource(snapshot.document, activeFileRef.current), true, 'pptx', path, context.project.title, snapshot.document.notes) : undefined;
       if (format === 'pptx' && !b64) throw new Error(c.error);
-      const content = b64 ? Uint8Array.from(atob(b64), character => character.charCodeAt(0)) : snapshot.document.html;
+      const content = b64 ? Uint8Array.from(atob(b64), character => character.charCodeAt(0)) : studioFileSource(snapshot.document, activeFileRef.current);
       const mime = format === 'html' ? 'text/html;charset=utf-8' : 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
       try {
-        await api('exports', 'POST', { format, base_version: snapshot.version, base_revision: snapshot.document_hash, ...(b64 ? { file_base64: b64 } : {}) });
+        await api('exports', 'POST', { format, source_file: activeFileRef.current, base_version: snapshot.version, base_revision: snapshot.document_hash, ...(b64 ? { file_base64: b64 } : {}) });
         setExports((await api('exports')).data);
       } catch {
         downloadStudioFile(content, mime, context.project.title, '.' + format);
@@ -251,8 +256,8 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
 
   return <main className={styles.editor} data-testid="semurai-studio-editor">
     {imagePicker && <StudioImagePicker initialSource={imagePicker.initialSource} target={imagePicker.target} locale={context.project.uiLocale} api={api} onClose={() => setImagePicker(null)} onApply={(image, alt, placement) => {
-      if (!latest.current || latest.current.html !== imagePicker.source) return false;
-      const html = placeStudioImage(latest.current.html, { dataUrl: image.dataUrl, alt }, placement, context.project.artifactType === 'email', imagePicker.target?.id);
+      if (!latest.current || studioFileSource(latest.current, activeFileRef.current) !== imagePicker.source) return false;
+      const html = placeStudioImage(studioFileSource(latest.current, activeFileRef.current), { dataUrl: image.dataUrl, alt }, placement, context.project.artifactType === 'email', imagePicker.target?.id);
       if (!html) return false;
       change({ ...latest.current, html }); setSelected(null); setImagePicker(null); return true;
     }} />}
@@ -266,15 +271,15 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
       <form className={styles.composer} onSubmit={event => { event.preventDefault(); void send(); }}><StudioMedia images={images} onChange={value => { setImages(value); requestKey.current = null; }} useLibrary={useLibrary} onLibrary={value => { setUseLibrary(value); requestKey.current = null; }} api={api} locale={context.project.uiLocale} disabled={busy || !!active} onBusy={setMediaBusy} /><textarea aria-label={c.ask} placeholder={c.ask} value={prompt} onChange={event => { setPrompt(event.target.value); requestKey.current = null; }} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send(); } }} /><div className={styles.composerFooter}><span>{c.chat}</span><Button type="submit" title={c.send} disabled={busy || mediaBusy || !!active || !prompt.trim()}><ArrowUp size={18} /></Button></div></form><p className={styles.chatHint}>{c.allChanges}</p>
     </aside>
     <section className={styles.workspace}>
-      <header className={styles.header}><Button className={styles.mobileChatToggle} title={c.chat} onClick={() => setShowChat(true)}><MessageSquare size={16} /></Button><div className={styles.fileTab}><Code2 size={15} /><span>{context.project.title}</span></div><span className={styles.saveState}>{dirty ? c.unsaved : <><Check size={13} />{c.saved}</>}</span><button title={c.history} onClick={() => setShowHistory(!showHistory)}><History size={17} /></button><Button disabled={!dirty || busy} onClick={() => { void action(async () => { await saveCurrent(); }); }}>{c.save}</Button><details className={styles.exportMenu}><summary><Download size={15} />{c.export}</summary><div><Button disabled={!document || busy} onClick={() => { void exportFile('html'); }}>{c.downloadHtml}</Button>{deck && <Button disabled={!document || busy} onClick={() => { void exportFile('pptx'); }}>{c.downloadPptx}</Button>}<Button disabled={!document || busy} onClick={() => { if (document) void action(async () => { await exportStudioDocument(document.html, deck, 'print', path, context.project.title); }); }}>{c.print}</Button><Button onClick={() => { setShowExports(!showExports); setShowHistory(false); }}>{c.exportHistory}</Button></div></details></header>
-      <div className={styles.toolbar}><div className={styles.segment}><button className={mode !== 'source' ? styles.active : ''} onClick={() => setMode('preview')}><Eye size={15} />{c.preview}</button><button className={mode === 'source' ? styles.active : ''} onClick={() => setMode('source')}><Code2 size={15} />{c.source}</button></div><select value={device} onChange={event => setDevice(Number(event.target.value))} aria-label={c.desktop}><option value={0}>{c.desktop}</option><option value={768}>{c.tablet}</option><option value={390}>{c.mobile}</option></select><div className={styles.spacer} />{!deck && <StudioImageMenu locale={context.project.uiLocale} disabled={!document || busy || expired} onSelect={initialSource => { if (document) setImagePicker({ source: document.html, target: mode === 'edit' ? selected : null, initialSource }); }} />}<button disabled={!undo.length} title={c.undo} onClick={() => travel('undo')}><RotateCcw size={16} /></button><button disabled={!redo.length} title={c.redo} onClick={() => travel('redo')}><RotateCw size={16} /></button><button className={showLayers ? styles.active : ''} title={c.layers} onClick={() => { setShowLayers(!showLayers); setMode('edit'); }}><Layers size={16} /></button><button className={mode === 'edit' ? styles.active : ''} onClick={() => setMode(mode === 'edit' ? 'preview' : 'edit')}><Pencil size={15} />{c.edit}</button><button title={deck ? c.present : c.fullscreen} disabled={!document || (deck && count === 0)} onClick={() => { if (deck && document) setPresentation({ document, slide }); else void viewport.current?.requestFullscreen(); }}><Maximize2 size={16} /></button><select value={zoom} aria-label={c.zoom} onChange={event => setZoom(Number(event.target.value))}>{[50, 75, 100, 125, 150].map(value => <option key={value} value={value}>{value}%</option>)}</select></div>
+      <header className={styles.header}><Button className={styles.mobileChatToggle} title={c.chat} onClick={() => setShowChat(true)}><MessageSquare size={16} /></Button><div className={styles.fileTab}><Code2 size={15} /><span>{context.project.title}</span></div><span className={styles.saveState}>{dirty ? c.unsaved : <><Check size={13} />{c.saved}</>}</span><button title={c.history} onClick={() => setShowHistory(!showHistory)}><History size={17} /></button><Button disabled={!dirty || busy} onClick={() => { void action(async () => { await saveCurrent(); }); }}>{c.save}</Button><details className={styles.exportMenu}><summary><Download size={15} />{c.export}</summary><div><Button disabled={!document || busy} onClick={() => { void exportFile('html'); }}>{c.downloadHtml}</Button>{deck && <Button disabled={!document || busy} onClick={() => { void exportFile('pptx'); }}>{c.downloadPptx}</Button>}<Button disabled={!document || busy} onClick={() => { if (document) void action(async () => { await exportStudioDocument(visibleHtml, deck, 'print', path, context.project.title); }); }}>{c.print}</Button><Button onClick={() => { setShowExports(!showExports); setShowHistory(false); }}>{c.exportHistory}</Button></div></details></header>
+      <div className={styles.toolbar}><div className={styles.segment}><button className={mode !== 'source' ? styles.active : ''} onClick={() => setMode('preview')}><Eye size={15} />{c.preview}</button><button className={mode === 'source' ? styles.active : ''} onClick={() => setMode('source')}><Code2 size={15} />{c.source}</button></div>{Boolean(document?.files?.length) && <select aria-label={c.source} value={activeFile} onChange={event => { activeFileRef.current = event.target.value; setActiveFile(event.target.value); setSelected(null); setTargets([]); setSheet(0); }}><option value="index.html">index.html</option>{document?.files?.map(file => <option key={file.path} value={file.path}>{file.path}</option>)}</select>}<select value={device} onChange={event => setDevice(Number(event.target.value))} aria-label={c.desktop}><option value={0}>{c.desktop}</option><option value={768}>{c.tablet}</option><option value={390}>{c.mobile}</option></select><div className={styles.spacer} />{!deck && <StudioImageMenu locale={context.project.uiLocale} disabled={!document || busy || expired} onSelect={initialSource => { if (document) setImagePicker({ source: visibleHtml, target: mode === 'edit' ? selected : null, initialSource }); }} />}<button disabled={!undo.length} title={c.undo} onClick={() => travel('undo')}><RotateCcw size={16} /></button><button disabled={!redo.length} title={c.redo} onClick={() => travel('redo')}><RotateCw size={16} /></button><button className={showLayers ? styles.active : ''} title={c.layers} onClick={() => { setShowLayers(!showLayers); setMode('edit'); }}><Layers size={16} /></button><button className={mode === 'edit' ? styles.active : ''} onClick={() => setMode(mode === 'edit' ? 'preview' : 'edit')}><Pencil size={15} />{c.edit}</button><button title={deck ? c.present : c.fullscreen} disabled={!document || (deck && count === 0)} onClick={() => { if (deck && document) setPresentation({ document, slide }); else void viewport.current?.requestFullscreen(); }}><Maximize2 size={16} /></button><select value={zoom} aria-label={c.zoom} onChange={event => setZoom(Number(event.target.value))}>{[50, 75, 100, 125, 150].map(value => <option key={value} value={value}>{value}%</option>)}</select></div>
       {expired && <div className={styles.error} role="alert">{c.expired}<a href={safeStudioReturn(context)!} target="_blank" rel="noopener noreferrer">{c.back}</a></div>}
       {error && <div className={styles.error} role="alert">{error}<button onClick={() => setError('')}><X size={15} /></button></div>}
       <div className={styles.body}>
         {deck && count > 0 && mode !== 'source' && <aside className={styles.slides}><div className={styles.slideTools}><Button title={c.duplicateSlide} disabled={count >= 60} onClick={() => slideAction('duplicate')}><Copy size={14} /></Button><Button title={c.removeSlide} disabled={count <= 1} onClick={() => slideAction('remove')}><Trash2 size={14} /></Button><Button title={c.moveUp} disabled={slide === 0} onClick={() => slideAction('before')}><ChevronUp size={14} /></Button><Button title={c.moveDown} disabled={slide >= count - 1} onClick={() => slideAction('after')}><ChevronDown size={14} /></Button></div><DeckThumbnailRail count={count} activeIndex={Math.min(slide, count - 1)} labelTotal={count} buildThumbSrcDoc={thumbnail} onSelect={navigateSlide} previewViewport={{ width: 1920, height: 1080 }} /></aside>}
         {showLayers && mode === 'edit' && <aside className={styles.layers}>{targets.map(target => <button key={target.id} className={selected?.id === target.id ? styles.active : ''} onClick={() => pick(target)}><span>{target.tagName}</span>{target.label || target.text.slice(0, 45)}</button>)}</aside>}
         <div className={styles.stage}>
-          {loading ? <div className={styles.empty}>{c.loading}</div> : !document ? <div className={styles.empty}><Sparkles size={32} /><h2>{c.empty}</h2><p>{c.emptyHelp}</p></div> : mode === 'source' ? <div className={styles.sourceEditor}><div className={styles.sourceTabs}><Button onClick={() => setSourceTab('html')} aria-pressed={sourceTab === 'html'}>{c.html}</Button><Button onClick={() => setSourceTab('css')} aria-pressed={sourceTab === 'css'}>{c.css}</Button>{sourceTab === 'css' && sheets.length > 1 && <select aria-label={c.css} value={Math.min(sheet, sheets.length - 1)} onChange={event => setSheet(Number(event.target.value))}>{sheets.map((_, index) => <option key={index} value={index}>CSS {index + 1}</option>)}</select>}</div><textarea className={styles.code} aria-label={sourceTab === 'html' ? c.savedSource : c.css} spellCheck={false} value={sourceTab === 'html' ? document.html : sheets[Math.min(sheet, Math.max(0, sheets.length - 1))] ?? ''} onKeyDown={event => { if (event.key !== 'Tab') return; event.preventDefault(); const input = event.currentTarget; const start = input.selectionStart; const end = input.selectionEnd; const value = input.value.slice(0, start) + '  ' + input.value.slice(end); change({ ...document, html: sourceTab === 'html' ? value : replaceStyleBlock(document.html, Math.min(sheet, Math.max(0, sheets.length - 1)), value) }); requestAnimationFrame(() => { input.selectionStart = input.selectionEnd = start + 2; }); }} onChange={event => change({ ...document, html: sourceTab === 'html' ? event.target.value : replaceStyleBlock(document.html, Math.min(sheet, Math.max(0, sheets.length - 1)), event.target.value) })} /></div> : <div ref={viewport} className={styles.viewport} style={{ maxWidth: device || undefined, zoom: zoom / 100 }}><iframe ref={frame} title={c.preview} sandbox="allow-scripts allow-modals" srcDoc={srcdoc} onLoad={() => frame.current?.contentWindow?.postMessage({ type: 'od-edit-mode', enabled: mode === 'edit' }, '*')} /></div>}
+          {loading ? <div className={styles.empty}>{c.loading}</div> : !document ? <div className={styles.empty}><Sparkles size={32} /><h2>{c.empty}</h2><p>{c.emptyHelp}</p></div> : mode === 'source' ? <div className={styles.sourceEditor}><div className={styles.sourceTabs}><Button onClick={() => setSourceTab('html')} aria-pressed={sourceTab === 'html'}>{c.html}</Button><Button onClick={() => setSourceTab('css')} aria-pressed={sourceTab === 'css'}>{c.css}</Button>{sourceTab === 'css' && sheets.length > 1 && <select aria-label={c.css} value={Math.min(sheet, sheets.length - 1)} onChange={event => setSheet(Number(event.target.value))}>{sheets.map((_, index) => <option key={index} value={index}>CSS {index + 1}</option>)}</select>}</div><textarea className={styles.code} aria-label={sourceTab === 'html' ? c.savedSource : c.css} spellCheck={false} value={sourceTab === 'html' ? visibleHtml : sheets[Math.min(sheet, Math.max(0, sheets.length - 1))] ?? ''} onKeyDown={event => { if (event.key !== 'Tab') return; event.preventDefault(); const input = event.currentTarget; const start = input.selectionStart; const end = input.selectionEnd; const value = input.value.slice(0, start) + '  ' + input.value.slice(end); change({ ...document, html: sourceTab === 'html' ? value : replaceStyleBlock(visibleHtml, Math.min(sheet, Math.max(0, sheets.length - 1)), value) }); requestAnimationFrame(() => { input.selectionStart = input.selectionEnd = start + 2; }); }} onChange={event => change({ ...document, html: sourceTab === 'html' ? event.target.value : replaceStyleBlock(visibleHtml, Math.min(sheet, Math.max(0, sheets.length - 1)), event.target.value) })} /></div> : <div ref={viewport} className={styles.viewport} style={{ maxWidth: device || undefined, zoom: zoom / 100 }}><iframe ref={frame} title={c.preview} sandbox="allow-scripts allow-modals" srcDoc={srcdoc} onLoad={() => frame.current?.contentWindow?.postMessage({ type: 'od-edit-mode', enabled: mode === 'edit' }, '*')} /></div>}
           {deck && document && mode !== 'source' && <label className={styles.notes}><span>{c.notes} · {slide + 1}/{count}</span><textarea value={document.notes?.[slide] ?? ''} placeholder={c.notes} onChange={event => { const notes = Array.from({ length: count }, (_, index) => document.notes?.[index] ?? ''); notes[slide] = event.target.value; change({ ...document, notes }); }} /></label>}
         </div>
         {mode === 'edit' && <div className={styles.inspector}><ManualEditPanel targets={targets} selectedTarget={selected} draft={draft} history={[]} error={null} canUndo={!!undo.length} canRedo={!!redo.length} busy={busy} onSelectTarget={pick} onDraftChange={setDraft} onStyleChange={(id, values) => patch({ kind: 'set-style', id, styles: values })} onApplyPatch={patch} onPickImage={pickImage} onError={setError} onClearSelection={() => setSelected(null)} onCancelDraft={() => selected && pick(selected)} onSaveDraft={() => { void saveDraft(); }} onResetDraft={() => selected && pick(selected)} onUndo={() => travel('undo')} onRedo={() => travel('redo')} onExit={() => setMode('preview')} /></div>}

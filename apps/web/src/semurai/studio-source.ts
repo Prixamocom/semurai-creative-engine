@@ -52,3 +52,13 @@ export function changeSlide(source: string, notes: (string | null)[], index: num
   [...doc.querySelectorAll('.deck-stage .slide')].forEach((node, i) => node.classList.toggle('active', i === active));
   return { html: '<!doctype html>\n' + doc.documentElement.outerHTML, notes: nextNotes, active };
 }
+
+export interface StudioSources { html: string; files?: { path: string; content: string }[] }
+export function studioFileSource(document: StudioSources, path: string): string {
+  return path === 'index.html' ? document.html : document.files?.find(file => file.path === path)?.content ?? document.html;
+}
+export function replaceStudioFile<T extends StudioSources>(document: T, path: string, content: string): T {
+  if (path === 'index.html') return { ...document, html: content };
+  if (!document.files?.some(file => file.path === path)) throw new Error('Unknown source file');
+  return { ...document, files: document.files.map(file => file.path === path ? { ...file, content } : file) };
+}
