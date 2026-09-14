@@ -21,7 +21,7 @@ import { StudioImageMenu } from './StudioImageMenu';
 import { placeStudioImage } from './studio-images';
 import styles from './StudioEditor.module.css';
 import { StudioReview } from './StudioReview';
-import { readReviewTarget, reviewBrief, reviewCopy, type ReviewTarget } from './studio-review';
+import { readReviewTarget, reviewBrief, reviewCopy, type ReviewTarget, type StudioComment } from './studio-review';
 
 interface StudioDocument { version: 1; kind: string; name: string; html: string; files?: { path: string; content: string }[]; notes: (string | null)[]; brandContextHash?: string }
 interface SavedSource { id: string; version: number; document: StudioDocument; document_hash: string }
@@ -38,6 +38,10 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
   const [resizing, setResizing] = useState(false);
   const resizeStart = useRef({ x: 0, width: 390 });
   const [review, setReview] = useState<'element' | 'area' | null>(null);
+  const [comments, setComments] = useState<StudioComment[]>([]);
+  const [showResolved, setShowResolved] = useState(false);
+  const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
+  const [frameReady, setFrameReady] = useState(0);
   const [reviewTarget, setReviewTarget] = useState<ReviewTarget | null>(null);
   const [aiTarget, setAiTarget] = useState<ReviewTarget | null>(null);
   const reviewTargets = useRef<ReviewTarget[]>([]);
@@ -97,7 +101,9 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
   useEffect(() => { setReviewTarget(null); setAreaBox(undefined); reviewTargets.current = []; }, [activeFile, device, slide]);
   const reviewState = useRef({ review, version: 0 });
   reviewState.current = { review, version: saved?.version ?? 0 };
-  function selectReview(target: ReviewTarget | null) {
+  function selectReview(target: ReviewTarget | null, id?: string) {
+    setActiveCommentId(id ?? null);
+    if (id) frame.current?.contentWindow?.postMessage({ type: 'semurai:comment-focus', id }, '*');
     setReviewTarget(target);
     if (target?.slideIndex !== undefined) navigateSlide(target.slideIndex);
     frame.current?.contentWindow?.postMessage({ type: 'od:comment-active-target', elementId: target?.elementId, selector: target?.selector }, '*');
@@ -115,6 +121,26 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
     if (!response.ok) throw new Error(response.status === 401 ? c.expired : response.status === 409 ? c.conflict : c.error);
     return response.json();
   }, [path, c]);
+
+  useEffect(() => {
+    let live = true;
+    const read = () => { void api('comments').then(result => { if (live) setComments(result.data); }).catch(() => { if (live) setError(r.error); }); };
+    read(); window.addEventListener('focus', read);
+    return () => { live = false; window.removeEventListener('focus', read); };
+  }, [api, r.error]);
+  const fileComments = comments.filter(item => item.target.file === activeFile);
+  const markerItems = fileComments.map((item, index) => ({ ...item, number: index + 1, label: r.comments })).filter(item => showResolved || !item.resolved);
+  const markersState = useRef({ items: markerItems, enabled: true, selected: activeCommentId });
+  markersState.current = { items: markerItems, enabled: mode === 'preview', selected: activeCommentId };
+  function syncMarkers() {
+    frame.current?.contentWindow?.postMessage({ type: 'semurai:comment-markers', ...markersState.current }, '*');
+  }
+  const commentsRef = useRef(comments); commentsRef.current = comments;
+  useEffect(() => {
+    syncMarkers();
+    frame.current?.contentWindow?.postMessage({ type: 'od:comment-mode', enabled: !!review && mode === 'preview' }, '*');
+  }, [comments, activeFile, showResolved, activeCommentId, mode, review, frameReady]);
+  useEffect(() => { setActiveCommentId(null); }, [activeFile]);
 
   function adopt(value: SavedSource | null) {
     if (activeFileRef.current !== 'index.html' && !value?.document.files?.some(file => file.path === activeFileRef.current)) { activeFileRef.current = 'index.html'; setActiveFile('index.html'); }
@@ -189,7 +215,13 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
     const receive = (event: MessageEvent) => {
       if (event.source !== frame.current?.contentWindow || !event.data || typeof event.data !== 'object') return;
       const data = event.data;
+      if (data.type === 'semurai:comment-markers-ready') syncMarkers();
+      if (data.type === 'semurai:comment-open' && typeof data.id === 'string') {
+        const item = commentsRef.current.find(comment => comment.id === data.id && comment.target.file === activeFileRef.current);
+        if (item) { setMode('preview'); setReview('element'); setShowHistory(false); setShowExports(false); selectReview(item.target, item.id); }
+      }
       if (reviewState.current.review && (data.type === 'od:comment-target' || data.type === 'od:comment-active-target-update')) {
+        if (data.type === 'od:comment-target') setActiveCommentId(null);
         const target = readReviewTarget(data, activeFileRef.current, reviewState.current.version);
         if (target) { setReviewTarget(previous => data.type === 'od:comment-active-target-update' && previous ? { ...previous, position: target.position } : target); if (data.type === 'od:comment-target') frame.current?.contentWindow?.postMessage({ type: 'od:comment-active-target', elementId: target.elementId, selector: target.selector }, '*'); }
       }
@@ -205,7 +237,7 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
   }, [count]);
   // Deck navigation uses the upstream message protocol; rebuilding srcdoc on
   // every reported slide would reset the runtime and undo the user's navigation.
-  const srcdoc = useMemo(() => document ? studioPreviewSource(visibleHtml, slide, mode === 'edit', deck, !!review) : '', [visibleHtml, mode, deck, !!review]);
+  const srcdoc = useMemo(() => document ? studioPreviewSource(visibleHtml, slide, mode === 'edit', deck, false, true) : '', [visibleHtml, mode, deck]);
   function navigateSlide(index: number) {
     setSlide(index);
     frame.current?.contentWindow?.postMessage({ type: 'od:slide', action: 'go', index }, '*');
@@ -323,7 +355,7 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
       onPointerUp={event => { event.currentTarget.releasePointerCapture(event.pointerId); setResizing(false); }} onLostPointerCapture={() => setResizing(false)} />
     <section className={styles.workspace}>
       <header className={styles.header}>{chatCollapsed && <Button title={c.chat} onClick={() => setChatCollapsed(false)}><PanelLeftOpen size={16} /></Button>}<Button className={styles.mobileChatToggle} title={c.chat} onClick={() => setShowChat(true)}><MessageSquare size={16} /></Button><div className={styles.fileTab}><Code2 size={15} /><span>{context.project.title}</span></div><span className={styles.saveState}>{dirty ? c.unsaved : <><Check size={13} />{c.saved}</>}</span><button title={c.history} onClick={() => { setShowHistory(!showHistory); setShowExports(false); setReview(null); }}><History size={17} /></button><Button disabled={!dirty || busy} onClick={() => { void action(async () => { await saveCurrent(); }); }}>{c.save}</Button><details className={styles.exportMenu}><summary><Download size={15} />{c.export}</summary><div><Button disabled={!document || busy} onClick={() => { void exportFile('html'); }}>{c.downloadHtml}</Button>{deck && <Button disabled={!document || busy} onClick={() => { void exportFile('pptx'); }}>{c.downloadPptx}</Button>}<Button disabled={!document || busy} onClick={() => { if (document) void action(async () => { await exportStudioDocument(visibleHtml, deck, 'print', path, context.project.title); }); }}>{c.print}</Button><Button onClick={() => { setShowExports(!showExports); setShowHistory(false); setReview(null); }}>{c.exportHistory}</Button></div></details></header>
-      <div className={styles.toolbar}><div className={styles.segment}><button className={mode !== 'source' ? styles.active : ''} onClick={() => setMode('preview')}><Eye size={15} />{c.preview}</button><button className={mode === 'source' ? styles.active : ''} onClick={() => setMode('source')}><Code2 size={15} />{c.source}</button></div><div className={styles.devices} role="group" aria-label={c.preview}>{[[0, c.desktop, Monitor], [768, c.tablet, Tablet], [390, c.mobile, Smartphone]].map(([width, label, DeviceIcon]) => { const Icon = DeviceIcon as typeof Monitor; return <Button key={String(width)} title={String(label)} aria-label={String(label)} aria-pressed={device === width} onClick={() => setDevice(Number(width))}><Icon size={16} /><span>{String(label)}</span></Button>; })}</div><div className={styles.spacer} />{!deck && <StudioImageMenu locale={context.project.uiLocale} disabled={!document || busy || expired} onSelect={initialSource => { if (document) setImagePicker({ source: visibleHtml, target: mode === 'edit' ? selected : null, initialSource }); }} />}<button disabled={!undo.length} title={c.undo} onClick={() => travel('undo')}><RotateCcw size={16} /></button><button disabled={!redo.length} title={c.redo} onClick={() => travel('redo')}><RotateCw size={16} /></button><Button aria-pressed={review === 'element'} title={r.select} disabled={!document || mode === 'source'} onClick={() => { setMode('preview'); setReview(review === 'element' ? null : 'element'); setShowHistory(false); setShowExports(false); }}><MousePointer2 size={16} /></Button><Button aria-pressed={review === 'area'} title={r.area} disabled={!document || mode === 'source'} onClick={() => { setMode('preview'); setReview(review === 'area' ? null : 'area'); setShowHistory(false); setShowExports(false); }}><Scan size={16} /></Button><Button aria-pressed={!!review} title={r.comments} disabled={!document} onClick={() => { setMode('preview'); setReview(review ? null : 'element'); setShowHistory(false); setShowExports(false); }}><MessageSquare size={16} /></Button><button className={showLayers ? styles.active : ''} title={c.layers} onClick={() => { setShowLayers(!showLayers); setMode('edit'); }}><Layers size={16} /></button><button className={mode === 'edit' ? styles.active : ''} onClick={() => setMode(mode === 'edit' ? 'preview' : 'edit')}><Pencil size={15} />{c.edit}</button><button title={deck ? c.present : c.fullscreen} disabled={!document || (deck && count === 0)} onClick={() => { if (deck && document) setPresentation({ document, slide }); else void viewport.current?.requestFullscreen(); }}><Maximize2 size={16} /></button><select value={zoom} aria-label={c.zoom} onChange={event => setZoom(Number(event.target.value))}>{[50, 75, 100, 125, 150].map(value => <option key={value} value={value}>{value}%</option>)}</select></div>
+      <div className={styles.toolbar}><div className={styles.segment}><button className={mode !== 'source' ? styles.active : ''} onClick={() => setMode('preview')}><Eye size={15} />{c.preview}</button><button className={mode === 'source' ? styles.active : ''} onClick={() => setMode('source')}><Code2 size={15} />{c.source}</button></div><div className={styles.devices} role="group" aria-label={c.preview}>{[[0, c.desktop, Monitor], [768, c.tablet, Tablet], [390, c.mobile, Smartphone]].map(([width, label, DeviceIcon]) => { const Icon = DeviceIcon as typeof Monitor; return <Button key={String(width)} title={String(label)} aria-label={String(label)} aria-pressed={device === width} onClick={() => setDevice(Number(width))}><Icon size={16} /><span>{String(label)}</span></Button>; })}</div><div className={styles.spacer} />{!deck && <StudioImageMenu locale={context.project.uiLocale} disabled={!document || busy || expired} onSelect={initialSource => { if (document) setImagePicker({ source: visibleHtml, target: mode === 'edit' ? selected : null, initialSource }); }} />}<button disabled={!undo.length} title={c.undo} onClick={() => travel('undo')}><RotateCcw size={16} /></button><button disabled={!redo.length} title={c.redo} onClick={() => travel('redo')}><RotateCw size={16} /></button><Button aria-pressed={review === 'element'} title={r.select} disabled={!document || mode === 'source'} onClick={() => { setMode('preview'); setReview(review === 'element' ? null : 'element'); setShowHistory(false); setShowExports(false); }}><MousePointer2 size={16} /></Button><Button aria-pressed={review === 'area'} title={r.area} disabled={!document || mode === 'source'} onClick={() => { setMode('preview'); setReview(review === 'area' ? null : 'area'); setShowHistory(false); setShowExports(false); }}><Scan size={16} /></Button><Button aria-pressed={!!review} title={r.comments} aria-label={`${r.comments} (${fileComments.length})`} disabled={!document} onClick={() => { setMode('preview'); setReview(review ? null : 'element'); setShowHistory(false); setShowExports(false); }}><MessageSquare size={16} /><span className={styles.commentCount} aria-hidden="true">{fileComments.length}</span></Button><button className={showLayers ? styles.active : ''} title={c.layers} onClick={() => { setShowLayers(!showLayers); setMode('edit'); }}><Layers size={16} /></button><button className={mode === 'edit' ? styles.active : ''} onClick={() => setMode(mode === 'edit' ? 'preview' : 'edit')}><Pencil size={15} />{c.edit}</button><button title={deck ? c.present : c.fullscreen} disabled={!document || (deck && count === 0)} onClick={() => { if (deck && document) setPresentation({ document, slide }); else void viewport.current?.requestFullscreen(); }}><Maximize2 size={16} /></button><select value={zoom} aria-label={c.zoom} onChange={event => setZoom(Number(event.target.value))}>{[50, 75, 100, 125, 150].map(value => <option key={value} value={value}>{value}%</option>)}</select></div>
       {Boolean(document?.files?.length) && <nav className={styles.fileTabs} aria-label={c.files}>{['index.html', ...document!.files!.map(file => file.path)].map(file => <Button key={file} title={file} aria-current={activeFile === file ? 'page' : undefined} onClick={() => selectFile(file)}><Code2 size={14} />{file}</Button>)}</nav>}
       {expired && <div className={styles.error} role="alert">{c.expired}<a href={safeStudioReturn(context)!} target="_blank" rel="noopener noreferrer">{c.back}</a></div>}
       {error && <div className={styles.error} role="alert">{error}<button onClick={() => setError('')}><X size={15} /></button></div>}
@@ -340,10 +372,10 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
               }
               setAreaBox(undefined);
             }} onPointerCancel={() => { areaStart.current = null; setAreaBox(undefined); }}>{areaBox && <div className={styles.selectionBox} style={{ left: areaBox.x, top: areaBox.y, width: areaBox.width, height: areaBox.height }} />}</div>}
-            <iframe ref={frame} title={c.preview} sandbox="allow-scripts allow-modals" srcDoc={srcdoc} onLoad={() => frame.current?.contentWindow?.postMessage({ type: 'od-edit-mode', enabled: mode === 'edit' }, '*')} /></div>}
+            <iframe ref={frame} title={c.preview} sandbox="allow-scripts allow-modals" srcDoc={srcdoc} onLoad={() => { frame.current?.contentWindow?.postMessage({ type: 'od-edit-mode', enabled: mode === 'edit' }, '*'); setFrameReady(value => value + 1); }} /></div>}
           {deck && document && mode !== 'source' && <label className={styles.notes}><span>{c.notes} · {slide + 1}/{count}</span><textarea value={document.notes?.[slide] ?? ''} placeholder={c.notes} onChange={event => { const notes = Array.from({ length: count }, (_, index) => document.notes?.[index] ?? ''); notes[slide] = event.target.value; change({ ...document, notes }); }} /></label>}
         </div>
-        {review && <StudioReview locale={context.project.uiLocale} file={activeFile} version={saved?.version ?? 0} target={reviewTarget} disabled={busy || expired} api={api} onAsk={askSelection} onSelect={selectReview} onClose={() => { setReview(null); setReviewTarget(null); }} />}
+        {review && <StudioReview comments={comments} onCommentsChange={setComments} resolved={showResolved} onResolvedChange={setShowResolved} activeCommentId={activeCommentId} locale={context.project.uiLocale} file={activeFile} version={saved?.version ?? 0} target={reviewTarget} disabled={busy || expired} api={api} onAsk={askSelection} onSelect={selectReview} onClose={() => { setReview(null); setReviewTarget(null); }} />}
         {mode === 'edit' && <div className={styles.inspector}><ManualEditPanel targets={targets} selectedTarget={selected} draft={draft} history={[]} error={null} canUndo={!!undo.length} canRedo={!!redo.length} busy={busy} onSelectTarget={pick} onDraftChange={setDraft} onStyleChange={(id, values) => patch({ kind: 'set-style', id, styles: values })} onApplyPatch={patch} onPickImage={pickImage} onError={setError} onClearSelection={() => setSelected(null)} onCancelDraft={() => selected && pick(selected)} onSaveDraft={() => { void saveDraft(); }} onResetDraft={() => selected && pick(selected)} onUndo={() => travel('undo')} onRedo={() => travel('redo')} onExit={() => setMode('preview')} /></div>}
         {showHistory && <aside className={styles.history}><h3>{c.history}</h3>{versions.map(version => <div key={version.id}><strong>{c.version} {version.version}</strong><small>{new Date(version.created_at).toLocaleString(context.project.uiLocale)}</small><Button disabled={busy || version.version === saved?.version || dirty} onClick={() => { void action(async () => { await api('versions/' + version.id + '/restore', 'POST', { base_version: saved?.version, base_revision: saved?.document_hash }); await refresh(true); }); }}>{c.restore}</Button></div>)}</aside>}
         {showExports && <aside className={styles.history}><h3>{c.exportHistory}</h3>{!exports.length && <p>{c.noExports}</p>}{exports.map(file => <div key={file.id}><strong>{file.format.toUpperCase()} · {c.version} {file.version}</strong><small>{new Date(file.created_at).toLocaleString(context.project.uiLocale)} · {Math.max(1, Math.round(file.size / 1024))} KB</small><Button disabled={busy} onClick={() => { void downloadExport(file); }}><Download size={14} />{c.downloadAgain}</Button></div>)}</aside>}

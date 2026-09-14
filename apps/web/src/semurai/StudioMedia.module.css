@@ -22,9 +22,9 @@
 @media (max-width:600px) { .library .grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 
 .compact { padding: 0; }
-.menuRoot { position: absolute; right: 14px; bottom: 11px; z-index: 5; }
+.menuRoot { position: absolute; left: 14px; bottom: 11px; z-index: 5; }
 .media .plus { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--border); background: var(--bg-panel); border-radius: 50%; }
-.menu { position: absolute; bottom: 44px; right: 0; width: 250px; max-width: calc(100vw - 50px); padding: 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-panel); box-shadow: 0 10px 35px #0002; }
+.menu { position: absolute; bottom: 44px; left: 0; width: 250px; max-width: calc(100vw - 50px); padding: 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-panel); box-shadow: 0 10px 35px #0002; }
 .menu .actions { display: grid; gap: 4px; }
 .menu button { width: 100%; padding: 10px; font-size: 12px; justify-content: flex-start; }
 .menu button:hover { background: var(--bg-subtle); }

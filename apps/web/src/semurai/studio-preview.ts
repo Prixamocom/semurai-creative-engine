@@ -1,4 +1,5 @@
 import DOMPurify from 'dompurify';
+import { STUDIO_COMMENT_BRIDGE } from './studio-comment-bridge';
 import { DECK_SKELETON_HTML } from '@open-design/contracts';
 import { findRealTagEnd, HTML_TAG_PATTERNS } from '@open-design/contracts/runtime/html-injection-points';
 import { annotateManualEditSourcePaths, annotateMissingOdIds, buildSrcdoc } from '../runtime/srcdoc';
@@ -6,7 +7,7 @@ import { annotateManualEditSourcePaths, annotateMissingOdIds, buildSrcdoc } from
 export const STUDIO_ARTIFACT_CSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'";
 
 /** Prepare an opaque preview; never persist this derivative as the user's source. */
-export function studioPreviewSource(source: string, slide = 0, edit = false, deck = true, annotate = false): string {
+export function studioPreviewSource(source: string, slide = 0, edit = false, deck = true, annotate = false, markers = false): string {
   // Map identities before removing unsafe author nodes so a manual edit still
   // resolves the same element in the original, unsanitized canonical source.
   const mapped = annotateManualEditSourcePaths(annotateMissingOdIds(source));
@@ -36,8 +37,9 @@ export function studioPreviewSource(source: string, slide = 0, edit = false, dec
       parsed.body.appendChild(runtime);
     }
   }
+  if (markers) { const bridge = parsed.createElement('script'); bridge.textContent = STUDIO_COMMENT_BRIDGE; parsed.body.appendChild(bridge); }
   const prepared = buildSrcdoc('<!doctype html>\n' + parsed.documentElement.outerHTML, {
-    deck, initialSlideIndex: slide, hideDeckChrome: true, editBridge: edit, commentBridge: annotate, freezeMotion: deck && !edit,
+    deck, initialSlideIndex: slide, hideDeckChrome: true, editBridge: edit, commentBridge: annotate, selectionBridge: markers, freezeMotion: deck && !edit,
   });
   // First in the head, before any of the trusted preview bridges execute.
   const headEnd = findRealTagEnd(prepared, HTML_TAG_PATTERNS.headOpen);

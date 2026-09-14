@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { StudioReview } from '../../src/semurai/StudioReview';
@@ -16,9 +17,10 @@ describe('Studio review workflow', () => {
   });
   it('saves a scoped comment, sends it to the composer and resolves it without a generation request', async () => {
     const comment: StudioComment = { id: 'one', text: 'Make this smaller', target, resolved: false, revision: 1, author: 'Test', created_at: '2026-09-14T10:00:00Z' };
-    const api = vi.fn().mockResolvedValueOnce({ data: [] }).mockResolvedValueOnce({ data: [comment] }).mockResolvedValueOnce({ data: [{ ...comment, resolved: true, revision: 2 }] });
+    const api = vi.fn().mockResolvedValueOnce({ data: [comment] }).mockResolvedValueOnce({ data: [{ ...comment, resolved: true, revision: 2 }] });
     const ask = vi.fn();
-    render(<StudioReview locale="en" file={target.file} version={3} target={target} disabled={false} api={api} onAsk={ask} onSelect={() => {}} onClose={() => {}} />);
+    function Review() { const [comments, setComments] = useState<StudioComment[]>([]); const [resolved, setResolved] = useState(false); return <StudioReview comments={comments} onCommentsChange={setComments} resolved={resolved} onResolvedChange={setResolved} activeCommentId={null} locale="en" file={target.file} version={3} target={target} disabled={false} api={api} onAsk={ask} onSelect={() => {}} onClose={() => {}} />; }
+    render(<Review />);
     await screen.findByText('No comments for this file.');
     fireEvent.change(screen.getByRole('textbox'), { target: { value: comment.text } });
     fireEvent.click(screen.getByRole('button', { name: 'Save comment' }));
