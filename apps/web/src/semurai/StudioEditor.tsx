@@ -12,7 +12,8 @@ import { studioPreviewSource, studioSlideCount } from './studio-preview';
 import { studioEditorCopy } from './studio-editor-copy';
 import { changeSlide, replaceStyleBlock, styleBlocks, type SlideOperation } from './studio-source';
 import { downloadStudioFile, exportStudioDocument } from './studio-export';
-import { renderMarkdown } from '../runtime/markdown';
+import { StudioChatTurn } from './StudioChatTurn';
+import type { StudioChatJob, StudioChatMessage } from './studio-chat';
 import { StudioMedia, type StudioImage } from './StudioMedia';
 import { StudioPresenter } from './StudioPresenter';
 import { StudioImagePicker, studioImageCopy } from './StudioImagePicker';
@@ -21,7 +22,7 @@ import styles from './StudioEditor.module.css';
 
 interface StudioDocument { version: 1; kind: string; name: string; html: string; notes: (string | null)[]; brandContextHash?: string }
 interface SavedSource { id: string; version: number; document: StudioDocument; document_hash: string }
-interface Job { assistant_message?: string; references?: { id: string; title: string; thumbnail?: string }[]; id: string; brief: string; status: string; retryable: boolean; base_version: number }
+type Job = StudioChatJob;
 interface Version { id: string; version: number; kind: string; created_at: string }
 interface ProjectExport { id: string; format: 'html' | 'pptx'; version: number; title: string; created_at: string; mime_type: string; size: number; sha256: string }
 const terminal = new Set(['completed', 'failed', 'cancelled', 'conflicted']);
@@ -42,6 +43,8 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
   const [exports, setExports] = useState<ProjectExport[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [cancelling, setCancelling] = useState<string | null>(null);
+  const [liveMessages, setLiveMessages] = useState<Record<string, StudioChatMessage[]>>({});
   const [error, setError] = useState('');
   const [prompt, setPrompt] = useState('');
   const [images, setImages] = useState<StudioImage[]>([]);
@@ -100,7 +103,33 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
   }, [active?.id, refresh, c]);
   useEffect(() => { const warn = (event: BeforeUnloadEvent) => { if (dirty) { event.preventDefault(); event.returnValue = ''; } }; window.addEventListener('beforeunload', warn); return () => window.removeEventListener('beforeunload', warn); }, [dirty]);
 
-  useEffect(() => { const element = chatLog.current; if (element && followChat.current) element.scrollTop = element.scrollHeight; }, [jobs]);
+  useEffect(() => { const element = chatLog.current; if (element && followChat.current) element.scrollTop = element.scrollHeight; }, [jobs, liveMessages]);
+  useEffect(() => {
+    if (!active || expired || typeof EventSource === 'undefined') return;
+    const events = new EventSource(path + 'chat/events');
+    events.addEventListener('chat', event => {
+      try {
+        const runs = JSON.parse((event as MessageEvent).data);
+        if (!Array.isArray(runs)) return;
+        setLiveMessages(previous => {
+          const next = { ...previous };
+          for (const run of runs) if (typeof run.runId === 'string' && Array.isArray(run.messages) && run.messages.length) next[run.runId] = run.messages;
+          return next;
+        });
+      } catch { /* Durable project polling remains available during a reconnect. */ }
+    });
+    return () => events.close();
+  }, [active?.id, expired, path]);
+
+  async function cancelJob(job: Job) {
+    if (cancelling || job.cancel_requested || busy) return;
+    setCancelling(job.id);
+    try {
+      const result = await api('jobs/' + job.id + '/cancel', 'POST', {});
+      setJobs(previous => previous.map(item => item.id === job.id ? result.data : item));
+    } catch { setError(c.error); }
+    finally { setCancelling(null); }
+  }
 
   function change(next: StudioDocument) {
     const previous = latest.current;
@@ -231,7 +260,7 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
       <header className={styles.chatHeader}><a href={safeStudioReturn(context)!} title={c.back}><ArrowLeft size={17} /></a><strong>{context.project.title}</strong><button className={styles.mobileChatToggle} onClick={() => setShowChat(false)} title={c.close}><X size={16} /></button><button onClick={onClose} title={c.close}><X size={16} /></button></header>
       <div className={styles.conversation} ref={chatLog} role="log" onScroll={event => { const element = event.currentTarget; followChat.current = element.scrollHeight - element.scrollTop - element.clientHeight < 160; }}><div className={styles.brand}><Sparkles size={20} /><span>{c.newProject}</span></div>
         {!jobs.length && <div className={styles.welcome}><h2>{c.empty}</h2><p>{c.emptyHelp}</p></div>}
-        {[...jobs].reverse().map(job => <div key={job.id} className={styles.turn}><p className={styles.userMessage}>{job.brief}</p><div className={styles.references}>{job.references?.map(image => image.thumbnail && <img key={image.id} src={image.thumbnail} alt={image.title} title={image.title} />)}</div><div className={styles.answer}><span className={styles.spark}><Sparkles size={15} /></span><div>{job.assistant_message && <div className={styles.assistantText}>{renderMarkdown(job.assistant_message.replace(/<od-done\b[^>]*\/?>/gi, ''), { syntaxHighlight: false })}</div>}<strong>{job.status === 'completed' ? c.completed : job.status === 'failed' ? c.failed : job.status === 'cancelled' ? c.cancelled : job.status === 'conflicted' ? c.conflict : c.working}</strong>{!terminal.has(job.status) && <button onClick={() => { void action(async () => { await api('jobs/' + job.id + '/cancel', 'POST', {}); await refresh(); }); }}>{c.cancel}</button>}{job.retryable && <button onClick={() => { void action(async () => { await api('jobs/' + job.id + '/retry', 'POST', {}); await refresh(); }); }}>{c.retry}</button>}</div></div></div>)}
+        {[...jobs].reverse().map(job => <StudioChatTurn key={job.id} job={job} live={job.run_id ? liveMessages[job.run_id] : undefined} cancelling={cancelling === job.id} busy={busy} copy={c} onCancel={() => { void cancelJob(job); }} onRetry={() => { void action(async () => { await api('jobs/' + job.id + '/retry', 'POST', {}); await refresh(); }); }} />)}
       </div>
       <form className={styles.composer} onSubmit={event => { event.preventDefault(); void send(); }}><StudioMedia images={images} onChange={value => { setImages(value); requestKey.current = null; }} useLibrary={useLibrary} onLibrary={value => { setUseLibrary(value); requestKey.current = null; }} api={api} locale={context.project.uiLocale} disabled={busy || !!active} onBusy={setMediaBusy} /><textarea aria-label={c.ask} placeholder={c.ask} value={prompt} onChange={event => { setPrompt(event.target.value); requestKey.current = null; }} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send(); } }} /><div className={styles.composerFooter}><span>{c.chat}</span><Button type="submit" title={c.send} disabled={busy || mediaBusy || !!active || !prompt.trim()}><ArrowUp size={18} /></Button></div></form><p className={styles.chatHint}>{c.allChanges}</p>
     </aside>
