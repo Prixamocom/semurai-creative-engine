@@ -49,7 +49,7 @@ export function buildOpenCodeByokProviderConfig(
     return null;
   }
   const apiKey = typeof provider.apiKey === 'string' ? provider.apiKey.trim() : '';
-  const rawModel = typeof model === 'string' ? model.trim() : '';
+  const rawModel = (typeof model === 'string' ? model.trim() : '').replace(new RegExp(`^${BYOK_OPENCODE_PROVIDER_ID}/`), '');
   const defaultBaseUrl = DEFAULT_BASE_URL_BY_PROTOCOL[protocol];
   const baseUrl = normalizeProviderBaseUrl(
     protocol,

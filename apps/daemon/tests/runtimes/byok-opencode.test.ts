@@ -37,6 +37,14 @@ describe('byok-opencode runtime config', () => {
     }
   });
 
+  it('uses a qualified model with the native OpenCode provider without duplicating its namespace', () => {
+    const result = buildOpenCodeByokProviderConfig({ protocol: 'openai', apiKey: 'test-secret', baseUrl: 'https://api.deepseek.com/v1' }, 'open-design-byok/deepseek-flash');
+    expect(result?.modelId).toBe('open-design-byok/deepseek-flash');
+    expect(JSON.stringify(result?.config)).toContain('deepseek-flash');
+    expect(JSON.stringify(result?.config)).not.toContain('open-design-byok/deepseek-flash');
+    expect(JSON.stringify(result?.config)).not.toContain('test-secret');
+  });
+
   it('prefixes raw BYOK models with the run-scoped OpenCode provider id', () => {
     expect(opencodeByokModelId('gpt-4o-mini')).toBe('open-design-byok/gpt-4o-mini');
     expect(opencodeByokModelId('open-design-byok/gpt-4o-mini')).toBe('open-design-byok/gpt-4o-mini');

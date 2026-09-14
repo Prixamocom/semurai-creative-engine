@@ -10870,19 +10870,22 @@ export async function startServer({
       );
     if (!def.bin)
       return failRun('AGENT_UNAVAILABLE', 'agent has no binary');
-    const byokOpenCodeProvider = def.id === 'byok-opencode'
+    // Native OpenCode keeps its session and Design Harness capabilities while
+    // accepting the same isolated, per-run provider configuration as BYOK.
+    const usesOpenCodeProvider = def.id === 'byok-opencode' || (def.id === 'opencode' && byokProvider != null);
+    const byokOpenCodeProvider = usesOpenCodeProvider
       ? buildOpenCodeByokProviderConfig(
           byokProvider,
           typeof model === 'string' ? model : null,
         )
       : null;
-    if (def.id === 'byok-opencode' && !byokOpenCodeProvider) {
+    if (usesOpenCodeProvider && !byokOpenCodeProvider) {
       return failRun(
         'BYOK_PROVIDER_REQUIRED',
         BYOK_OPENCODE_PROVIDER_REQUIRED_MESSAGE,
       );
     }
-    const requestedRuntimeModel = def.id === 'byok-opencode'
+    const requestedRuntimeModel = usesOpenCodeProvider
       ? byokOpenCodeProvider?.modelId ?? null
       : model;
     // Validate the checked-in runtime timeout hints immediately

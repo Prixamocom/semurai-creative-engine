@@ -18,6 +18,12 @@ describe('BYOK run input boundary', () => {
     })).toBe(true);
   });
 
+  it('validates native OpenCode per-run credentials without excluding ordinary configured agents', () => {
+    expect(__forTestHasCompleteByokOpenCodeConfig({ agentId: 'opencode' })).toBe(true);
+    expect(__forTestHasCompleteByokOpenCodeConfig({ agentId: 'opencode', model: 'open-design-byok/deepseek-flash', byokProvider: { protocol: 'openai', apiKey: 'test-secret', baseUrl: 'https://api.deepseek.com/v1' } })).toBe(true);
+    expect(__forTestHasCompleteByokOpenCodeConfig({ agentId: 'opencode', byokProvider: {} })).toBe(false);
+  });
+
   it('rejects a BYOK run without a run-scoped provider', () => {
     expect(__forTestHasCompleteByokOpenCodeConfig({
       agentId: 'byok-opencode',

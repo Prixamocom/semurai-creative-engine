@@ -88,6 +88,32 @@ only the authenticated Creative service may reach their engine endpoints.
 Use least-privilege per-run storage URLs and provider credentials. Do not set
 upstream analytics or tracing credentials to send private runs to third parties.
 
+## Design Harness and chat lifecycle
+
+Studio imports the canonical Core source into an isolated scratch project,
+sets its task type (deck or prototype), and restores the daemon's automatic
+scenario binding through the public project API. It starts native `opencode`
+with a scoped BYOK provider configuration so native resume and capability
+verification remain available. Canvas keeps its existing dedicated pipeline.
+A missing Harness task is an explicit integration error, never a silent
+fallback. Fresh generation does not seed a fake editable HTML baseline.
+
+The service follows the logical `strategyTask` across physical planning,
+contract-repair and production runs, retaining public messages and summing
+actual usage. Core stores a version only after logical completion and source
+validation. `clarification_required` becomes `awaiting_input`, releases worker
+capacity and preserves the question. An answer starts a new isolated Semurai
+run with the canonical source and recent conversation context; the original
+scratch session is not retained across separate user messages.
+
+Studio merges SSE and durable Core records by stable message IDs. It reuses
+the upstream Markdown and question-form renderers and groups bounded tool
+activity into expandable execution records, showing the latest todo snapshot.
+Machine contracts, reasoning and raw tool inputs/outputs stay out of chat.
+Cancellation settles unfinished activities, and success is displayed only
+when Core confirms storage. Returning to the window refreshes the source and
+history; SSE can discover jobs started from the main Semurai chat.
+
 ## Upstream updates
 
 The container retains Markdown license/notice files in installed dependencies

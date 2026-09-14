@@ -880,7 +880,7 @@ function externalPluginAttributionMismatch(
 }
 
 function hasCompleteByokOpenCodeConfig(meta: JsonRecord): boolean {
-  if (meta.agentId !== BYOK_OPENCODE_AGENT_ID) return true;
+  if (meta.agentId !== BYOK_OPENCODE_AGENT_ID && !(meta.agentId === 'opencode' && meta.byokProvider != null)) return true;
   return buildOpenCodeByokProviderConfig(
     meta.byokProvider as ByokChatProviderConfig | null | undefined,
     typeof meta.model === 'string' ? meta.model : null,

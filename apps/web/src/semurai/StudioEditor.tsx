@@ -13,7 +13,7 @@ import { studioEditorCopy } from './studio-editor-copy';
 import { changeSlide, replaceStyleBlock, styleBlocks, studioFileSource, replaceStudioFile, type SlideOperation } from './studio-source';
 import { downloadStudioFile, exportStudioDocument } from './studio-export';
 import { StudioChatTurn } from './StudioChatTurn';
-import type { StudioChatJob, StudioChatMessage } from './studio-chat';
+import { terminalChatStatuses as terminal, type StudioChatJob, type StudioLiveRun } from './studio-chat';
 import { StudioMedia, type StudioImage } from './StudioMedia';
 import { StudioPresenter } from './StudioPresenter';
 import { StudioImagePicker } from './StudioImagePicker';
@@ -28,7 +28,6 @@ interface SavedSource { id: string; version: number; document: StudioDocument; d
 type Job = StudioChatJob;
 interface Version { id: string; version: number; kind: string; created_at: string }
 interface ProjectExport { id: string; format: 'html' | 'pptx'; version: number; title: string; created_at: string; mime_type: string; size: number; sha256: string }
-const terminal = new Set(['completed', 'failed', 'cancelled', 'conflicted']);
 
 export function StudioEditor({ context, expired = false, onClose }: { context: StudioContext; expired?: boolean; onClose: () => void }) {
   const c = studioEditorCopy[context.project.uiLocale];
@@ -60,12 +59,14 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
   const [presentation, setPresentation] = useState<{ document: StudioDocument; slide: number } | null>(null);
   const [saved, setSaved] = useState<SavedSource | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const jobsRef = useRef(jobs); jobsRef.current = jobs;
+  const liveRefreshAt = useRef(0);
   const [versions, setVersions] = useState<Version[]>([]);
   const [exports, setExports] = useState<ProjectExport[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [cancelling, setCancelling] = useState<string | null>(null);
-  const [liveMessages, setLiveMessages] = useState<Record<string, StudioChatMessage[]>>({});
+  const [liveMessages, setLiveMessages] = useState<Record<string, StudioLiveRun>>({});
   const [error, setError] = useState('');
   const [prompt, setPrompt] = useState('');
   const [images, setImages] = useState<StudioImage[]>([]);
@@ -163,25 +164,29 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
     timer = setTimeout(() => { void tick(); }, 1500);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [active?.id, refresh, c]);
+  useEffect(() => { const focused = () => { void refresh().catch(() => {}); }; window.addEventListener('focus', focused); return () => window.removeEventListener('focus', focused); }, [refresh]);
   useEffect(() => { const warn = (event: BeforeUnloadEvent) => { if (dirty) { event.preventDefault(); event.returnValue = ''; } }; window.addEventListener('beforeunload', warn); return () => window.removeEventListener('beforeunload', warn); }, [dirty]);
 
   useEffect(() => { const element = chatLog.current; if (element && followChat.current) element.scrollTop = element.scrollHeight; }, [jobs, liveMessages]);
   useEffect(() => {
-    if (!active || expired || typeof EventSource === 'undefined') return;
+    if (expired || typeof EventSource === 'undefined') return;
     const events = new EventSource(path + 'chat/events');
     events.addEventListener('chat', event => {
       try {
         const runs = JSON.parse((event as MessageEvent).data);
         if (!Array.isArray(runs)) return;
+        if (runs.some(run => typeof run.runId === 'string' && !jobsRef.current.some(job => job.run_id === run.runId)) && Date.now() - liveRefreshAt.current > 2500) {
+          liveRefreshAt.current = Date.now(); void refresh().catch(() => {});
+        }
         setLiveMessages(previous => {
           const next = { ...previous };
-          for (const run of runs) if (typeof run.runId === 'string' && Array.isArray(run.messages) && run.messages.length) next[run.runId] = run.messages;
+          for (const run of runs) if (typeof run.runId === 'string' && typeof run.status === 'string' && Array.isArray(run.messages)) next[run.runId] = run;
           return next;
         });
       } catch { /* Durable project polling remains available during a reconnect. */ }
     });
     return () => events.close();
-  }, [active?.id, expired, path]);
+  }, [expired, path, refresh]);
 
   async function cancelJob(job: Job) {
     if (cancelling || job.cancel_requested || busy) return;
@@ -344,7 +349,7 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
       <header className={styles.chatHeader}><a href={safeStudioReturn(context)!} title={c.back}><ArrowLeft size={17} /></a><strong>{context.project.title}</strong><button className={styles.mobileChatToggle} onClick={() => setShowChat(false)} title={c.close}><X size={16} /></button><Button className={styles.collapseChat} title={c.chat} onClick={() => setChatCollapsed(true)}><PanelLeftClose size={16} /></Button><button disabled={busy} onClick={() => { if (dirty) void action(async () => { await saveCurrent(); onClose(); }); else onClose(); }} title={c.close}><X size={16} /></button></header>
       <div className={styles.conversation} ref={chatLog} role="log" onScroll={event => { const element = event.currentTarget; followChat.current = element.scrollHeight - element.scrollTop - element.clientHeight < 160; }}><div className={styles.brand}><Sparkles size={20} /><span>{c.newProject}</span></div>
         {!jobs.length && <div className={styles.welcome}><h2>{c.empty}</h2><p>{c.emptyHelp}</p></div>}
-        {[...jobs].reverse().map(job => <StudioChatTurn key={job.id} job={job} live={job.run_id ? liveMessages[job.run_id] : undefined} cancelling={cancelling === job.id} busy={busy} copy={c} onCancel={() => { void cancelJob(job); }} onRetry={() => { void action(async () => { await api('jobs/' + job.id + '/retry', 'POST', {}); await refresh(); }); }} />)}
+        {[...jobs].reverse().map(job => <StudioChatTurn key={job.id} job={job} live={job.run_id ? liveMessages[job.run_id] : undefined} cancelling={cancelling === job.id} busy={busy} copy={c} onAnswer={job.id === jobs[0]?.id && !active ? text => { setPrompt(text); } : undefined} onCancel={() => { void cancelJob(job); }} onRetry={() => { void action(async () => { await api('jobs/' + job.id + '/retry', 'POST', {}); await refresh(); }); }} />)}
       </div>
       <form className={styles.composer} onSubmit={event => { event.preventDefault(); void send(); }}><StudioMedia images={images} onChange={value => { setImages(value); requestKey.current = null; }} useLibrary={useLibrary} onLibrary={value => { setUseLibrary(value); requestKey.current = null; }} api={api} locale={context.project.uiLocale} disabled={busy || !!active} onBusy={setMediaBusy} compact /><textarea ref={promptInput} aria-label={c.ask} placeholder={c.ask} value={prompt} onChange={event => { setPrompt(event.target.value); requestKey.current = null; }} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }} />{aiTarget && <div className={styles.aiTarget}><MousePointer2 size={14} /><span title={aiTarget.text}>{aiTarget.file} · {aiTarget.label}</span><Button title={r.remove} onClick={() => { setAiTarget(null); requestKey.current = null; }}><X size={13} /></Button></div>}<div className={styles.composerFooter}><span>{c.chat}</span><Button type="submit" title={c.send} disabled={busy || mediaBusy || !!active || !prompt.trim()}><ArrowUp size={18} /></Button></div></form><p className={styles.chatHint}>{c.allChanges}</p>
     </aside>
