@@ -25,7 +25,8 @@ export function safeStudioReturn(context: StudioContext): string | null {
     const origin = new URL(context.project.coreOrigin);
     const target = new URL(context.returnUrl);
     if (origin.protocol !== 'https:' && !['localhost', '127.0.0.1'].includes(origin.hostname)) return null;
-    return target.origin === origin.origin && target.pathname === '/app/creative/' + context.projectId && !target.search && !target.hash
-      ? target.href : null;
+    const allowed = target.pathname === '/app/creative/' + context.projectId || target.pathname === '/app/chat/creative' || target.pathname === '/app/chat/creative/';
+    return target.origin === origin.origin && allowed && !target.search && !target.hash
+      ? new URL('/app/chat/creative', origin).href : null;
   } catch { return null; }
 }

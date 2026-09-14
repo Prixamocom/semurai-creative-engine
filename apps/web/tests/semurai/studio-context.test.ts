@@ -7,9 +7,11 @@ describe('Semurai Studio navigation boundary', () => {
     expect(studioSessionPath('/studio/' + id + '/')).toBe('/studio/' + id + '/');
     for (const path of ['/api/settings', '/studio/../../api/', '/studio/token?secret=a', '//evil.test/']) expect(studioSessionPath(path)).toBeNull();
   });
-  it('returns only to the scoped canonical project on the configured Semurai origin', () => {
+  it('returns to the Creative library on the configured Semurai origin', () => {
     const context = { projectId: 'owned', project: { coreOrigin: 'https://semur.ai' }, returnUrl: 'https://semur.ai/app/creative/owned' } as StudioContext;
-    expect(safeStudioReturn(context)).toBe(context.returnUrl);
+    expect(safeStudioReturn(context)).toBe('https://semur.ai/app/chat/creative');
+    expect(safeStudioReturn({ ...context, returnUrl: 'https://semur.ai/app/chat/creative' })).toBe('https://semur.ai/app/chat/creative');
+    expect(safeStudioReturn({ ...context, returnUrl: 'https://semur.ai/app/chat/creative/?creative_project=owned' })).toBeNull();
     for (const returnUrl of ['https://evil.test/app/creative/owned', 'https://semur.ai/app/creative/other', 'javascript:alert(1)']) {
       expect(safeStudioReturn({ ...context, returnUrl })).toBeNull();
     }

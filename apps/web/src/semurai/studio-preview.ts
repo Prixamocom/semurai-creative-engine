@@ -6,7 +6,7 @@ import { annotateManualEditSourcePaths, annotateMissingOdIds, buildSrcdoc } from
 export const STUDIO_ARTIFACT_CSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'";
 
 /** Prepare an opaque preview; never persist this derivative as the user's source. */
-export function studioPreviewSource(source: string, slide = 0, edit = false, deck = true): string {
+export function studioPreviewSource(source: string, slide = 0, edit = false, deck = true, annotate = false): string {
   // Map identities before removing unsafe author nodes so a manual edit still
   // resolves the same element in the original, unsanitized canonical source.
   const mapped = annotateManualEditSourcePaths(annotateMissingOdIds(source));
@@ -37,7 +37,7 @@ export function studioPreviewSource(source: string, slide = 0, edit = false, dec
     }
   }
   const prepared = buildSrcdoc('<!doctype html>\n' + parsed.documentElement.outerHTML, {
-    deck, initialSlideIndex: slide, hideDeckChrome: true, editBridge: edit, freezeMotion: deck && !edit,
+    deck, initialSlideIndex: slide, hideDeckChrome: true, editBridge: edit, commentBridge: annotate, freezeMotion: deck && !edit,
   });
   // First in the head, before any of the trusted preview bridges execute.
   const headEnd = findRealTagEnd(prepared, HTML_TAG_PATTERNS.headOpen);

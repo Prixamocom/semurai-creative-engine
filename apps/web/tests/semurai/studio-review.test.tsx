@@ -1,0 +1,46 @@
+// @vitest-environment jsdom
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { StudioReview } from '../../src/semurai/StudioReview';
+import { StudioMedia } from '../../src/semurai/StudioMedia';
+import { readReviewTarget, reviewBrief, type StudioComment } from '../../src/semurai/studio-review';
+afterEach(cleanup);
+const target = { file: 'secondpage.html', version: 3, label: 'h1', selector: '#hero', text: 'Welcome', slideIndex: 1 };
+describe('Studio review workflow', () => {
+  it('preserves the precise file, slide and source version in AI instructions', () => {
+    expect(reviewBrief(target, 'Make this smaller')).toContain('secondpage.html');
+    expect(reviewBrief(target, 'Make this smaller')).toContain('version 3, slide 2');
+    expect(reviewBrief(target, 'Make this smaller')).toContain('#hero');
+    expect(readReviewTarget({ label: 'div', selector: '#x', position: { x: NaN, y: 0, width: 5, height: 5 } }, 'index.html', 2)?.position).toBeUndefined();
+    expect(readReviewTarget({ selector: 123 }, 'index.html', 1)).toBeNull();
+  });
+  it('saves a scoped comment, sends it to the composer and resolves it without a generation request', async () => {
+    const comment: StudioComment = { id: 'one', text: 'Make this smaller', target, resolved: false, revision: 1, author: 'Test', created_at: '2026-09-14T10:00:00Z' };
+    const api = vi.fn().mockResolvedValueOnce({ data: [] }).mockResolvedValueOnce({ data: [comment] }).mockResolvedValueOnce({ data: [{ ...comment, resolved: true, revision: 2 }] });
+    const ask = vi.fn();
+    render(<StudioReview locale="en" file={target.file} version={3} target={target} disabled={false} api={api} onAsk={ask} onSelect={() => {}} onClose={() => {}} />);
+    await screen.findByText('No comments for this file.');
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: comment.text } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save comment' }));
+    await screen.findByText(comment.text);
+    expect(api).toHaveBeenCalledWith('comments', 'POST', expect.objectContaining({ action: 'create', target, text: comment.text }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add to AI chat' }).at(-1)!);
+    expect(ask).toHaveBeenCalledWith(target, comment.text);
+    fireEvent.click(screen.getByRole('button', { name: 'Resolve' }));
+    await screen.findByText('No comments for this file.');
+    expect(api).toHaveBeenLastCalledWith('comments', 'POST', { action: 'resolve', id: 'one', revision: 1 });
+    fireEvent.click(screen.getByLabelText('Show resolved'));
+    expect(screen.getByRole('button', { name: 'Reopen' })).toBeTruthy();
+  });
+  it('keeps attachments behind the plus menu and restores keyboard focus on Escape', () => {
+    render(<StudioMedia compact locale="en" images={[]} onChange={() => {}} useLibrary onLibrary={() => {}} disabled={false} onBusy={() => {}} api={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: 'Attach images' })).toBeNull();
+    const plus = screen.getByRole('button', { name: 'Attachments and media' });
+    fireEvent.click(plus);
+    expect(screen.getByRole('button', { name: 'Attach images' })).toBeTruthy();
+    expect(screen.getByLabelText('Find matching photos in my library')).toBeTruthy();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('button', { name: 'Attach images' })).toBeNull();
+    expect(document.activeElement).toBe(plus);
+  });
+});

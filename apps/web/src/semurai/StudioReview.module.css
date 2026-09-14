@@ -1,0 +1,20 @@
+.panel { width: 340px; max-width: 100vw; flex-shrink: 0; padding: 18px; border-left: 1px solid var(--border); background: var(--bg-panel); overflow-y: auto; }
+.panel header, .panel h3, .actions { display: flex; align-items: center; gap: 8px; }
+.panel header { justify-content: space-between; margin-bottom: 16px; }
+.panel h3 { margin: 0; font-size: 14px; }
+.hint, .panel small { color: var(--text-secondary); font-size: 12px; line-height: 1.6; }
+.selection { position: relative; display: grid; gap: 4px; padding: 12px 36px 12px 12px; margin: 14px 0; border: 1px solid var(--border); border-radius: 10px; overflow-wrap: anywhere; }
+.selection button { position: absolute; right: 4px; top: 4px; }
+.panel textarea { box-sizing: border-box; width: 100%; min-height: 105px; resize: vertical; border: 1px solid var(--border); background: var(--bg-subtle); color: inherit; border-radius: 10px; padding: 12px; font: inherit; line-height: 1.6; }
+.actions { flex-wrap: wrap; margin-top: 10px; }
+.actions button { font-size: 11px; padding: 7px 9px; }
+.filter { display: flex; align-items: center; gap: 8px; font-size: 12px; margin: 22px 0 12px; }
+.list article { padding: 16px 0; border-top: 1px solid var(--border); }
+.list article p { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; margin: 10px 0; }
+.list article small { display: block; font-size: 10px; }
+.anchor { max-width: 100%; overflow: hidden; text-overflow: ellipsis; justify-content: flex-start; font-size: 12px; }
+.anchor span { border-radius: 50%; background: var(--text-strong); color: var(--bg-panel); padding: 2px 7px; }
+.resolved { opacity: .65; }
+@media (max-width: 1100px) { .panel { position: absolute; right: 0; inset-block: 0; z-index: 8; box-shadow: -8px 0 28px #0002; } }
+
+.filter input { width: 15px; height: 15px; margin: 0; flex: 0 0 15px; }

@@ -72,7 +72,7 @@ export function SemuraiStudio() {
     </header>
     <section className="semurai-studio-content">
       {unavailable ? <div role="alert"><h1>{c.expired}</h1><p>{c.expiredHelp}</p>
-        <a className="semurai-studio-primary" href="https://semur.ai/app/creative">{c.back}</a></div>
+        <a className="semurai-studio-primary" href="https://semur.ai/app/chat/creative">{c.back}</a></div>
         : <p role="status">{c.loading}</p>}
     </section>
   </main>;
