@@ -20,3 +20,16 @@
 .filter input { width: 15px; height: 15px; margin: 0; flex: 0 0 15px; }
 
 .list article.selected { background: var(--bg-subtle); box-shadow: inset 3px 0 var(--accent, #d86b48); padding-inline: 10px; border-radius: 8px; outline: none; }
+
+.panel { position: static; inset: auto; width: 100%; max-width: 100%; flex: 1; min-height: 0; padding: 14px; border: 0; box-shadow: none; }
+.panel textarea { min-height: 72px; }
+.list article { padding: 12px; margin: 10px 0; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-panel); }
+.thread .message { padding: 9px 0; }
+.thread .message > div { display: flex; align-items: center; gap: 7px; }
+.thread strong { font-size: 11px; font-weight: 600; }
+.thread time { color: var(--text-tertiary); font-size: 10px; margin-left: auto; }
+.thread p { margin: 8px 0; font-size: 12px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.avatar { display: inline-grid; place-items: center; width: 23px; height: 23px; border-radius: 50%; background: #d9ff4d; color: #1f1f1f; font-size: 11px; }
+.thread form { display: grid; gap: 7px; margin-top: 10px; }
+.thread form textarea { width: 100%; min-height: 58px; resize: vertical; border: 1px solid var(--border); border-radius: 9px; padding: 9px; background: var(--bg-panel); color: var(--text-primary); font: inherit; font-size: 12px; }
+.thread form button { justify-self: end; font-size: 11px; }

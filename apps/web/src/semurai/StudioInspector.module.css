@@ -1,0 +1,7 @@
+.panel { display: grid; gap: 16px; padding: 16px; }
+.panel label { display: grid; gap: 7px; font-size: 12px; color: var(--text-secondary); }
+.panel input, .panel textarea { width: 100%; min-width: 0; box-sizing: border-box; border: 1px solid var(--border); border-radius: 9px; padding: 10px; color: var(--text-primary); background: var(--bg-panel); font: inherit; line-height: 1.5; }
+.panel textarea { resize: vertical; }
+.panel small, .empty { color: var(--text-secondary); line-height: 1.7; }
+.empty { padding: 24px; }
+.panel .code { min-height: 330px; font: 12px/1.7 Consolas, monospace; tab-size: 2; }

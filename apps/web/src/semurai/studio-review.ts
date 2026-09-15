@@ -8,7 +8,12 @@ export interface ReviewTarget {
   slideIndex?: number;
   position?: { x: number; y: number; width: number; height: number };
 }
-export interface StudioComment { id: string; text: string; target: ReviewTarget; resolved: boolean; revision: number; created_at: string; author: string }
+export interface StudioReply { id: string; text: string; author: string; created_at: string }
+export interface StudioComment { id: string; text: string; target: ReviewTarget; resolved: boolean; revision: number; created_at: string; author: string; replies?: StudioReply[] }
+
+export function threadBrief(comment: StudioComment): string {
+  return [comment.text, ...(comment.replies ?? []).map(reply => `${reply.author}: ${reply.text}`)].join('\n\n');
+}
 
 /** Keep the selected source identity in the request, including index.html. */
 export function reviewBrief(target: ReviewTarget, instruction: string): string {

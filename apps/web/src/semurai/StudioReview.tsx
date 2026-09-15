@@ -4,6 +4,7 @@ import { Button } from '@open-design/components';
 import { Check, MessageSquare, Sparkles, X } from 'lucide-react';
 import { reviewCopy, type ReviewTarget, type StudioComment } from './studio-review';
 import styles from './StudioReview.module.css';
+import { StudioCommentThread } from './StudioCommentThread';
 
 export function StudioReview({ locale, file, version, target, disabled, api, onAsk, onSelect, onClose, comments, onCommentsChange, resolved, onResolvedChange, activeCommentId }: {
   locale: 'pl' | 'en' | 'de'; file: string; version: number; target: ReviewTarget | null; disabled: boolean;
@@ -21,7 +22,7 @@ export function StudioReview({ locale, file, version, target, disabled, api, onA
   async function mutate(body: unknown) {
     if (busy || disabled) return;
     setBusy(true); setError('');
-    try { const result = await api('comments', 'POST', body); onCommentsChange(result.data); if ((body as { action: string }).action === 'create') { setText(''); requestId.current = null; } }
+    try { const result = await api('comments', 'POST', body); onCommentsChange(result.data); if ((body as { action: string }).action === 'create') { const created = result.data.find(item => item.id === requestId.current); if (created) onSelect(created.target, created.id); } if ((body as { action: string }).action === 'create') { setText(''); requestId.current = null; } }
     catch { setError(c.error); }
     finally { setBusy(false); }
   }
@@ -39,9 +40,7 @@ export function StudioReview({ locale, file, version, target, disabled, api, onA
     <label className={styles.filter}><input type="checkbox" checked={resolved} onChange={event => onResolvedChange(event.target.checked)} />{c.resolved}</label>
     <div className={styles.list}>{!visible.length && <p className={styles.hint}>{c.empty}</p>}{visible.map(item => <article key={item.id} data-comment-id={item.id} tabIndex={-1} className={(item.resolved ? styles.resolved : '') + (item.id === activeCommentId ? ' ' + styles.selected : '')}>
       <Button className={styles.anchor} title={item.target.label} onClick={() => onSelect(item.target, item.id)}><span>{item.number}</span>{item.target.label}</Button>
-      <p>{item.text}</p><small>{item.author} · {new Date(item.created_at).toLocaleString(locale)}</small>
-      {item.target.version !== version && <small>{c.stale}</small>}
-      <div className={styles.actions}><Button disabled={disabled || busy} onClick={() => onAsk(item.target, item.text)}><Sparkles size={14} />{c.ask}</Button><Button disabled={disabled || busy} onClick={() => { void mutate({ action: item.resolved ? 'reopen' : 'resolve', id: item.id, revision: item.revision }); }}><Check size={14} />{item.resolved ? c.reopen : c.resolve}</Button></div>
+      <StudioCommentThread comment={item} locale={locale} disabled={disabled || busy} api={api} onChange={onCommentsChange} onAsk={text => onAsk(item.target, text)} />
     </article>)}</div>
   </aside>;
 }

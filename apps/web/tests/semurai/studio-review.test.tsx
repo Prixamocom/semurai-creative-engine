@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { StudioReview } from '../../src/semurai/StudioReview';
+import { StudioCommentThread } from '../../src/semurai/StudioCommentThread';
 import { StudioMedia } from '../../src/semurai/StudioMedia';
 import { readReviewTarget, reviewBrief, type StudioComment } from '../../src/semurai/studio-review';
 afterEach(cleanup);
@@ -33,6 +34,24 @@ describe('Studio review workflow', () => {
     expect(api).toHaveBeenLastCalledWith('comments', 'POST', { action: 'resolve', id: 'one', revision: 1 });
     fireEvent.click(screen.getByLabelText('Show resolved'));
     expect(screen.getByRole('button', { name: 'Reopen' })).toBeTruthy();
+  });
+  it('keeps a reply draft after a revision conflict and includes the discussion in AI context', async () => {
+    const comment: StudioComment = { id: 'one', text: 'Make this smaller', target, resolved: false, revision: 1, author: 'Test', created_at: '2026-09-14T10:00:00Z' };
+    const updated = { ...comment, revision: 2, replies: [{ id: 'other', text: 'Keep the cream background', author: 'Colleague', created_at: comment.created_at }] };
+    const api = vi.fn().mockRejectedValueOnce(new Error('Conflict')).mockResolvedValueOnce({ data: [updated] }).mockResolvedValueOnce({ data: [{ ...updated, revision: 3, replies: [...updated.replies, { id: 'mine', text: 'Use 34px', author: 'Test', created_at: comment.created_at }] }] });
+    const ask = vi.fn();
+    function Thread() { const [item, setItem] = useState(comment); return <StudioCommentThread comment={item} locale="en" disabled={false} api={api} onChange={items => setItem(items[0]!)} onAsk={ask} />; }
+    render(<Thread />);
+    fireEvent.change(screen.getByRole('textbox', { name: 'Reply' }), { target: { value: 'Use 34px' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Reply' }));
+    await screen.findByText('Keep the cream background');
+    expect((screen.getByRole('textbox', { name: 'Reply' }) as HTMLTextAreaElement).value).toBe('Use 34px');
+    fireEvent.click(screen.getByRole('button', { name: 'Reply' }));
+    await screen.findByText('Use 34px');
+    expect(api).toHaveBeenLastCalledWith('comments', 'POST', expect.objectContaining({ action: 'reply', revision: 2, text: 'Use 34px', reply_id: expect.any(String) }));
+    expect(api.mock.calls[0]![2]!.reply_id).toBe(api.mock.calls[2]![2]!.reply_id);
+    fireEvent.click(screen.getByRole('button', { name: 'Add to AI chat' }));
+    expect(ask).toHaveBeenCalledWith('Make this smaller\n\nColleague: Keep the cream background\n\nTest: Use 34px');
   });
   it('keeps attachments behind the plus menu and restores keyboard focus on Escape', () => {
     render(<StudioMedia compact locale="en" images={[]} onChange={() => {}} useLibrary onLibrary={() => {}} disabled={false} onBusy={() => {}} api={vi.fn()} />);

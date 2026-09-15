@@ -8,6 +8,23 @@ export const STUDIO_COMMENT_BRIDGE = String.raw`(function () {
   var style = document.createElement('style');
   style.textContent = 'button{position:fixed;box-sizing:border-box;width:34px;height:34px;border:3px solid white;border-radius:50% 50% 50% 8px;background:#d86b48;color:white;font:600 14px/1 system-ui;box-shadow:0 2px 8px #0003;pointer-events:auto;cursor:pointer;padding:0}button:hover,button:focus-visible,button[aria-pressed=true]{background:#ad4226;outline:2px solid #d86b48;outline-offset:2px}button[data-resolved=true]{background:#778078}';
   shadow.appendChild(style);
+  var tooltip = document.createElement('div');
+  tooltip.dataset.studioMeasurement = '';
+  tooltip.style.cssText = 'position:fixed;padding:5px 8px;border-radius:6px;background:#d9ff4d;color:#1f1f1f;font:600 11px/1.4 system-ui;box-shadow:0 2px 8px #0002;pointer-events:none';
+  tooltip.hidden = true; shadow.appendChild(tooltip);
+  var editing = false;
+  window.addEventListener('pointermove', function(event) {
+    if (!editing) { tooltip.hidden = true; return; }
+    var element = event.target instanceof Element ? event.target.closest('[data-od-id]') : null;
+    if (!element || element === host) { tooltip.hidden = true; return; }
+    var box = element.getBoundingClientRect(), computed = getComputedStyle(element);
+    tooltip.textContent = Math.round(box.width)+' × '+Math.round(box.height)+'px'+(element.textContent.trim() ? ' · '+computed.fontSize : '');
+    tooltip.hidden = false;
+    tooltip.style.left = Math.max(4, Math.min(innerWidth-tooltip.offsetWidth-4, box.left))+'px';
+    tooltip.style.top = Math.max(4, box.top-30)+'px';
+  }, true);
+  window.addEventListener('pointerleave', function() { tooltip.hidden = true; });
+  window.addEventListener('scroll', function() { tooltip.hidden = true; }, true);
   var items = [], enabled = true, selected = null, pending = false;
   function elementFor(target) {
     var element = null;
@@ -33,14 +50,15 @@ export const STUDIO_COMMENT_BRIDGE = String.raw`(function () {
       button.setAttribute('aria-label', button.title);
       button.setAttribute('aria-pressed', String(selected === item.id));
       button.dataset.resolved = String(item.resolved);
-      if (!visible) return;
+      if (!visible) { if (selected === item.id) parent.postMessage({type:'semurai:comment-position',id:item.id,x:0,y:0,visible:false},'*'); return; }
       var x = Math.max(3, Math.min(innerWidth-37, rect.left-14));
       var y = rect.top-14;
-      if (y < -17 || y > innerHeight-8) { button.hidden = true; return; }
+      if (y < -17 || y > innerHeight-8) { button.hidden = true; if (selected === item.id) parent.postMessage({type:'semurai:comment-position',id:item.id,x:0,y:0,visible:false},'*'); return; }
       y = Math.max(3, Math.min(innerHeight-37, y));
       var slot = Math.round(x/34)+':'+Math.round(y/34), offset = used.get(slot) || 0;
       used.set(slot, offset+1);
       button.style.left = Math.min(innerWidth-37, x+offset*37)+'px'; button.style.top = y+'px';
+      if (selected === item.id) parent.postMessage({type:'semurai:comment-position',id:item.id,x:x+offset*37,y:y,visible:true},'*');
     });
     shadow.querySelectorAll('button').forEach(function(button) { if (!items.some(function(item) { return item.id === button.dataset.id; })) button.remove(); });
   }
@@ -54,6 +72,7 @@ export const STUDIO_COMMENT_BRIDGE = String.raw`(function () {
   window.addEventListener('message', function(event) {
     if (event.source !== parent || !event.data) return;
     var data = event.data;
+    if (data.type === 'od-edit-mode') { editing = !!data.enabled; tooltip.hidden = true; }
     if (data.type === 'semurai:comment-markers' && Array.isArray(data.items)) {
       items = data.items.slice(0,200).filter(function(item) { return item && typeof item.id === 'string' && item.target && typeof item.target.selector === 'string'; });
       enabled = !!data.enabled; selected = data.selected || null; schedule();
