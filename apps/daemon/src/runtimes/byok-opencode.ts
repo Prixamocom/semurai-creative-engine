@@ -79,6 +79,11 @@ export function buildOpenCodeByokProviderConfig(
         models: {
           [rawModel]: {
             name: rawModel,
+            // The provider documents native image input for these exact Flash routes.
+            // Unknown BYOK models remain text-only; do not infer multimodal support.
+            ...(protocol === 'openai' && ['https://api.deepseek.com', 'https://api.deepseek.com/v1'].includes(baseUrl)
+              && ['deepseek-flash', 'deepseek-v4-flash-vision-exp'].includes(rawModel)
+              ? { attachment: true, modalities: { input: ['text', 'image'], output: ['text'] } } : {}),
             limit: {
               context: DEFAULT_CONTEXT_TOKEN_LIMIT,
               output: DEFAULT_OUTPUT_TOKEN_LIMIT,

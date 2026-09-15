@@ -63,6 +63,7 @@ const AUTOMATIC_STRATEGY_TASK_PROFILE_BY_ROUTE_ID = {
   deck: 'ppt',
   marketing: 'marketing',
   hyperframes: 'hyperframes',
+  canvas: 'canvas',
 } as const satisfies Record<string, ProjectScenarioTaskProfile>;
 
 /**
@@ -108,6 +109,7 @@ export function automaticStrategyTaskProfileForProjectMetadata(
     | null
     | undefined,
 ): ProjectScenarioTaskProfile | null {
+  if (metadata?.intent === 'canvas') return metadata.kind === 'other' ? 'canvas' : null;
   if (metadata?.intent === 'marketing') {
     return metadata.kind === 'prototype' ? 'marketing' : null;
   }
@@ -154,6 +156,7 @@ export function defaultScenarioPluginIdForKind(
 export function defaultScenarioPluginIdForProjectMetadata(
   metadata: Pick<ProjectMetadata, 'kind' | 'intent'> | null | undefined,
 ): DefaultScenarioPluginId | null {
+  if (metadata?.intent === 'canvas') return 'od-new-generation';
   if (metadata?.intent === 'live-artifact') return 'example-live-artifact';
   if (metadata?.intent === 'web-clone') return 'example-web-clone';
   // The powered-preview GPU card is a first-level output type on the create
@@ -183,6 +186,7 @@ export function defaultScenarioTaskProfileForProjectMetadata(
   if (taskProfile === 'prototype' || taskProfile === 'marketing') {
     return pluginId === 'example-web-prototype' ? taskProfile : null;
   }
+  if (taskProfile === 'canvas') return pluginId === 'od-new-generation' ? 'canvas' : null;
   if (taskProfile === 'ppt') {
     return pluginId === 'example-simple-deck' ? taskProfile : null;
   }

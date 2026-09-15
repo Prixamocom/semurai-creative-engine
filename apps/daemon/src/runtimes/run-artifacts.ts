@@ -93,6 +93,7 @@ const ARTIFACT_EXTENSIONS: ReadonlySet<string> = new Set([
 // tool-stream counter uses, keeping the two definitions of "artifact" aligned.
 export function isArtifactPath(path: string): boolean {
   const lower = path.toLowerCase();
+  if (/(^|[\\/])design\.json$/.test(lower)) return true;
   const dot = lower.lastIndexOf('.');
   if (dot < 0) return false;
   return ARTIFACT_EXTENSIONS.has(lower.slice(dot));

@@ -436,3 +436,10 @@ describe('byok-opencode runtime config', () => {
     expect(provider?.options).not.toHaveProperty('apiKey');
   });
 });
+
+it('enables real image input for the documented DeepSeek Flash provider only', () => {
+  const flash = buildOpenCodeByokProviderConfig({ protocol: 'openai', baseUrl: 'https://api.deepseek.com/v1', apiKey: 'test', model: 'deepseek-flash' }, 'deepseek-flash');
+  expect(JSON.stringify(flash?.config)).toContain('"input":["text","image"]');
+  const unknown = buildOpenCodeByokProviderConfig({ protocol: 'openai', baseUrl: 'https://example.test/v1', apiKey: 'test', model: 'deepseek-flash' }, 'deepseek-flash');
+  expect(JSON.stringify(unknown?.config)).not.toContain('modalities');
+});

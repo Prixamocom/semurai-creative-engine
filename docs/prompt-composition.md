@@ -95,6 +95,7 @@ to the **host**, not to either strategy — if a strategy is retired, these stay
 | `@media print` block | Share → PDF multi-page stitching | ✅ | ✅ |
 | `<question-form>` | `AssistantMessage.tsx` → `QuestionFormView`; `runAskedUserQuestion` analytics | ✅ `discovery.ts` | ✅ `od-next-strategy.ts:434` |
 | `.od-frames/` device shells | prototype device frames | ❌ | ✅ OD Next only |
+| Canvas v2 `design.json` and native render | `api/canvas.ts` parser, canonical entry validation, Canvas task profile | Not routed: Canvas requires Harness | ✅ `task-profiles/canvas.md`; renderer CLI and completion gate share `artifacts/canvas-render.ts` |
 
 Two things to read off this table.
 

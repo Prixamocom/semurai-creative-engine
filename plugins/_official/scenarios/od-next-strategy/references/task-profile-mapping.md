@@ -15,3 +15,5 @@ mapping fact. Never select the nearest specialist profile by guesswork.
 
 Content state describes packaged profile readiness only. It does not activate
 the scenario or override daemon rollout policy.
+
+Canvas: explicit project metadata `kind: other`, `intent: canvas` binds the `canvas` profile. Its production route is `canvas-json`, canonical entry `design.json`, output kind `canvas`. Other generic projects do not acquire this route.

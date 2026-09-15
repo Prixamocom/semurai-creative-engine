@@ -96,6 +96,16 @@ describe('bundled OD Next strategy package identity', () => {
     );
   });
 
+  it('loads the Canvas skill through the verified package with its own native output rules', async () => {
+    const plugin = await resolveStrategyRecord();
+    const binding = createBundledStrategyBindingV2({ plugin, taskType: 'canvas' });
+    expect(binding.selectedTaskProfile.taskType).toBe('canvas');
+    expect(binding.assetDigests.some(asset => asset.path === './assets/task-profiles/canvas.md')).toBe(true);
+    const assets = loadBundledStrategyPromptAssetsV2({ plugin, binding });
+    expect(JSON.stringify(assets)).toContain('canvas-render design.json');
+    expect(JSON.stringify(assets)).toContain('canvas-json');
+  });
+
   it('decodes the prototype device shells as task resources and locks them into the package identity', async () => {
     const plugin = await resolveStrategyRecord();
     const binding = createBundledStrategyBindingV2({ plugin, taskType: 'prototype' });
@@ -282,7 +292,7 @@ describe('hash-gated internal strategy activation and snapshot persistence', () 
     if (!activated || !activated.ok) throw new Error('expected strategy snapshot');
     expect(activated.snapshot.strategy).toEqual(expect.objectContaining({
       id: 'od-next-strategy',
-      version: '2.0.4',
+      version: '2.0.6',
       packageHash: expect.stringMatching(/^[a-f0-9]{64}$/),
       selectedTaskProfile: expect.objectContaining({ taskType: 'prototype' }),
     }));

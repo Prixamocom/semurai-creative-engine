@@ -17,7 +17,7 @@ import {
 } from '../src/plugins/scenario-defaults.js';
 
 describe('automaticStrategyTaskProfileForRouteId', () => {
-  it('recognizes only the four product-owned OD Next routes', () => {
+  it('recognizes the explicit product-owned OD Next routes', () => {
     expect(automaticStrategyTaskProfileForRouteId('prototype')).toBe('prototype');
     expect(automaticStrategyTaskProfileForRouteId('deck')).toBe('ppt');
     expect(automaticStrategyTaskProfileForRouteId('marketing')).toBe('marketing');
@@ -209,4 +209,14 @@ describe('defaultScenarioPluginIdForTaskKind', () => {
   it('returns null when the taskKind is missing', () => {
     expect(defaultScenarioPluginIdForTaskKind(undefined)).toBeNull();
   });
+});
+
+it('binds Canvas only for explicit metadata and the owned default', () => {
+  expect(automaticStrategyTaskProfileForRouteId('canvas')).toBe('canvas');
+  expect(automaticStrategyTaskProfileForProjectMetadata({ kind: 'other', intent: 'canvas' })).toBe('canvas');
+  expect(automaticStrategyTaskProfileForProjectMetadata({ kind: 'other' })).toBeNull();
+  expect(automaticStrategyTaskProfileForProjectMetadata({ kind: 'prototype', intent: 'canvas' })).toBeNull();
+  expect(defaultScenarioPluginIdForProjectMetadata({ kind: 'other', intent: 'canvas' })).toBe('od-new-generation');
+  expect(defaultScenarioTaskProfileForProjectMetadata({ kind: 'other', intent: 'canvas' }, 'od-new-generation')).toBe('canvas');
+  expect(defaultScenarioTaskProfileForProjectMetadata({ kind: 'other', intent: 'canvas' }, 'example-web-prototype')).toBeNull();
 });

@@ -1,3 +1,4 @@
+import { renderCanvasProject } from './canvas-render.js';
 import type {
   DeliverableSyntaxMetrics,
   DeliverableSyntaxRepairState,
@@ -59,10 +60,20 @@ export async function finalizeSuccessfulRunDeliverable(input: {
   if (
     !deliverable.valid
     || !input.projectId
-    || input.syntaxFinalizerEnabled === false
   ) {
     return { deliverable, syntax: { action: 'skip' } };
   }
+
+  if (input.projectMetadata?.intent === 'canvas') {
+    try {
+      const report = await renderCanvasProject(resolveProjectDir(input.projectsRoot, input.projectId, input.projectMetadata));
+      return { deliverable: report.valid ? deliverable : { ...deliverable, valid: false, validation: 'entry_unreadable' }, syntax: { action: 'skip' } };
+    } catch {
+      return { deliverable: { ...deliverable, valid: false, validation: 'entry_unreadable' }, syntax: { action: 'skip' } };
+    }
+  }
+
+  if (input.syntaxFinalizerEnabled === false) return { deliverable, syntax: { action: 'skip' } };
 
   const syntaxInput = {
     artifactKind: deliverable.artifactKind,

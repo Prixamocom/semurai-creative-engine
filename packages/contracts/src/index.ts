@@ -74,6 +74,7 @@ export * from './sse/common.js';
 export * from './sse/chat.js';
 export * from './sse/collab.js';
 export * from './sse/proxy.js';
+export * from './api/canvas.js';
 export * from './prompts/system.js';
 export * from './prompts/ui-locale.js';
 export * from './prompts/chat-turn-host-protocol.js';

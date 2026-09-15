@@ -409,3 +409,17 @@ describe('project deliverable validation', () => {
     })).resolves.toMatchObject({ valid: false, validation: 'project_missing' });
   });
 });
+
+it('accepts only changed valid Canvas JSON, never a preview as its deliverable', async () => {
+  const document = { version: 2, name: 'Canvas', stage: { width: 1080, height: 1080 }, pages: [
+    { id: 'one', name: 'One', stage: { width: 1080, height: 1080 }, nodes: [
+      { className: 'Text', attrs: { id: 'title', text: 'Collection', fontSize: 80 } },
+    ] },
+  ] };
+  const fixture = await projectFixture({ 'design.json': JSON.stringify(document), 'index.html': '<h1>Preview</h1>' });
+  const input = { ...fixture, projectMetadata: { kind: 'other' as const, intent: 'canvas' as const }, runStatus: 'succeeded' as const, artifactCount: 1 };
+  await expect(validateRunDeliverable({ ...input, touchedPaths: ['design.json'] })).resolves.toMatchObject({ valid: true, entryFile: 'design.json' });
+  await expect(validateRunDeliverable({ ...input, touchedPaths: ['index.html'] })).resolves.toMatchObject({ valid: false, validation: 'entry_not_touched' });
+  await fs.writeFile(path.join(fixture.projectsRoot, fixture.projectId, 'design.json'), '{"version":2}');
+  await expect(validateRunDeliverable({ ...input, touchedPaths: ['design.json'] })).resolves.toMatchObject({ valid: false, validation: 'entry_unreadable' });
+});

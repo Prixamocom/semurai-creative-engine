@@ -2,8 +2,18 @@
 ARG ENGINE_IMAGE=semurai-creative-engine:2b37fad4a
 FROM ${ENGINE_IMAGE}
 USER root
+COPY --chown=open-design:open-design apps/daemon/dist/ /app/apps/daemon/dist/
+COPY packages/contracts/dist/ /tmp/canvas-contracts-dist/
+COPY --chown=open-design:open-design plugins/_official/scenarios/od-next-strategy/ /app/plugins/_official/scenarios/od-next-strategy/
+RUN cp -a /tmp/canvas-contracts-dist/. /app/apps/daemon/node_modules/@open-design/contracts/dist/ && rm -rf /tmp/canvas-contracts-dist
 RUN npm install --global --ignore-scripts opencode-ai@1.18.30 && \
     node /usr/local/lib/node_modules/opencode-ai/postinstall.mjs && \
     npm cache clean --force && \
     opencode --version
+RUN apk add --no-cache chromium font-noto font-noto-arabic && \
+    npm install --prefix /opt/canvas-render --ignore-scripts playwright-core@1.59.1 && \
+    ln -s /opt/canvas-render/node_modules/playwright-core /app/apps/daemon/node_modules/playwright-core && \
+    chmod +x /app/apps/daemon/dist/artifacts/canvas-render-cli.js && \
+    ln -s /app/apps/daemon/dist/artifacts/canvas-render-cli.js /usr/local/bin/canvas-render
+ENV CANVAS_RENDER_URL=https://semur.ai/canvas-render/ CANVAS_CHROMIUM_PATH=/usr/bin/chromium
 USER open-design

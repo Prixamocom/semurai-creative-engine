@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { HYPERFRAMES_VIDEO_MODEL } from '@open-design/contracts';
+import { HYPERFRAMES_VIDEO_MODEL, parseCanvasDocument } from '@open-design/contracts';
 import type {
   ChatRunStatus,
   ProjectFile,
@@ -264,7 +264,8 @@ async function resolveDeliverable(
 
   const acceptedKinds = acceptedDeliverableKinds(input.projectMetadata);
   const isPrototype = projectKind(input.projectMetadata) === 'prototype';
-  const declared = safeRelativeFile(input.projectMetadata?.entryFile);
+  const isCanvas = input.projectMetadata?.intent === 'canvas' && projectKind(input.projectMetadata) === 'other';
+  const declared = isCanvas ? 'design.json' : safeRelativeFile(input.projectMetadata?.entryFile);
   const baselineEntry = isPrototype && input.touchedPaths
     ? safeRelativeFile(input.baselineEntryFile)
     : null;
@@ -331,6 +332,10 @@ async function resolveDeliverable(
     const stat = await fs.stat(target);
     if (!stat.isFile()) {
       return { valid: false, validation: 'entry_unreadable', ...facts };
+    }
+    if (isCanvas) {
+      if (stat.size > 2_000_000 || (await fs.realpath(target)) !== target) throw new Error('Unsafe canvas entry');
+      parseCanvasDocument(JSON.parse(await fs.readFile(target, 'utf8')));
     }
     const handle = await fs.open(target, 'r');
     await handle.close();
