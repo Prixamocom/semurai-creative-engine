@@ -24,7 +24,8 @@ export function StudioInspector({ mode, selected, draft, onDraft, patch, locale,
     if (selected.kind === 'text') patch({ kind: 'set-text', id: selected.id, value: draft.text });
     if (selected.kind === 'link') patch({ kind: 'set-link', id: selected.id, text: draft.text, href: draft.href });
     if (selected.kind === 'image') patch({ kind: 'set-image', id: selected.id, src: draft.src, alt: draft.alt });
-    patch({ kind: 'set-style', id: selected.id, styles: draft.styles });
+    const changes = Object.fromEntries(Object.entries(draft.styles).filter(([key, value]) => value !== selected.styles[key as keyof ManualEditStyles]));
+    if (Object.keys(changes).length) patch({ kind: 'set-style', id: selected.id, styles: changes });
   }
   return <div className={styles.panel} data-testid={'studio-inspector-' + mode}>
     <strong>{selected.label || selected.tagName}</strong>

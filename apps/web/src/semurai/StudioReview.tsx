@@ -22,7 +22,7 @@ export function StudioReview({ locale, file, version, target, disabled, api, onA
   async function mutate(body: unknown) {
     if (busy || disabled) return;
     setBusy(true); setError('');
-    try { const result = await api('comments', 'POST', body); onCommentsChange(result.data); if ((body as { action: string }).action === 'create') { const created = result.data.find(item => item.id === requestId.current); if (created) onSelect(created.target, created.id); } if ((body as { action: string }).action === 'create') { setText(''); requestId.current = null; } }
+    try { const result = await api('comments', 'POST', body); onCommentsChange(result.data); if ((body as { action: string }).action === 'create') { const created = result.data.find(item => item.id === (body as { id: string }).id); if (created) onSelect(created.target, created.id); } if ((body as { action: string }).action === 'create') { setText(''); requestId.current = null; } }
     catch { setError(c.error); }
     finally { setBusy(false); }
   }
