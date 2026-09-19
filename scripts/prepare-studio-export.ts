@@ -10,4 +10,6 @@ const vendor = new URL('apps/desktop/vendor/dom-to-pptx/', root);
 await writeFile(new URL('dom-to-pptx.js', target), gunzipSync(await readFile(new URL('dom-to-pptx.bundle.js.gz', vendor))));
 await copyFile(new URL('LICENSE', vendor), new URL('LICENSE.txt', target));
 await copyFile(new URL('packages/artifact-renderer/dist/browser.js', root), new URL('renderer.js', target));
+// Semurai supplies the same pinned GSAP distribution as its isolated renderer.
+if (process.env.SEMURAI_GSAP_PATH) await copyFile(process.env.SEMURAI_GSAP_PATH, new URL('gsap.min.js', target));
 process.stdout.write('Prepared Studio export assets: ' + fileURLToPath(target) + '\n');

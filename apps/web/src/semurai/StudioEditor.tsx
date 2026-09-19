@@ -54,6 +54,17 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
   const promptInput = useRef<HTMLTextAreaElement>(null);
   const path = studioSessionPath(window.location.pathname)!;
   const deck = context.project.artifactType === 'presentation';
+  const video = context.project.artifactType === 'video';
+  const [videoRuntime, setVideoRuntime] = useState('');
+  const [videoTime, setVideoTime] = useState(0);
+  const [videoDuration, setVideoDuration] = useState(0);
+  const [videoPlaying, setVideoPlaying] = useState(false);
+  const videoTimeRef = useRef(0);
+  const renderSave = useRef(false);
+  const renderKey = useRef<{ source: string; key: string } | null>(null);
+  const v = context.project.uiLocale === 'pl' ? { play: 'Odtwórz', pause: 'Pauza', time: 'Pozycja filmu', save: 'Zapisz i renderuj', rendering: 'Renderuję nową wersję filmu…' }
+    : context.project.uiLocale === 'de' ? { play: 'Abspielen', pause: 'Pause', time: 'Videoposition', save: 'Speichern und rendern', rendering: 'Neue Videoversion wird gerendert…' }
+    : { play: 'Play', pause: 'Pause', time: 'Video position', save: 'Save and render', rendering: 'Rendering the new video version…' };
   const frame = useRef<HTMLIFrameElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
   const latest = useRef<StudioDocument | null>(null);
@@ -159,14 +170,35 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
     setSaved(value); setDocument(value?.document ?? null); setUndo([]); setRedo([]); setSelected(null);
   }
   const refresh = useCallback(async (initial = false) => {
+    if (renderSave.current && !initial) return;
     const [source, jobList, history, files] = await Promise.all([api('document'), api('jobs'), api('versions'), api('exports')]);
     setJobs(jobList.data); setVersions(history.data);
     setExports(files.data);
     const next = source.data as SavedSource | null;
     const changed = next?.version !== baseline.current?.version || next?.document_hash !== baseline.current?.document_hash;
+    if (renderSave.current) return;
     if (initial || (changed && JSON.stringify(latest.current) === JSON.stringify(baseline.current?.document ?? null))) adopt(next);
     else if (changed) setError(c.conflict);
   }, [api, c]);
+  useEffect(() => {
+    if (!video) return;
+    const controller = new AbortController();
+    void fetch(path + 'export/gsap.min.js', { credentials: 'same-origin', signal: controller.signal })
+      .then(async response => { if (!response.ok) throw new Error(c.error); return response.text(); })
+      .then(setVideoRuntime).catch(() => { if (!controller.signal.aborted) setError(c.error); });
+    return () => controller.abort();
+  }, [video, path, c]);
+  useEffect(() => {
+    if (!video) return;
+    const receive = (event: MessageEvent) => {
+      if (event.source !== frame.current?.contentWindow) return;
+      const data = event.data;
+      if (data?.type === 'semurai:video-error') setError(c.error);
+      if (data?.type !== 'semurai:video-state' || !Number.isFinite(data.time) || !Number.isFinite(data.duration)) return;
+      setVideoTime(data.time); setVideoDuration(Math.max(0, Math.min(60, data.duration))); setVideoPlaying(data.playing === true); if (data.playing) videoTimeRef.current = data.time;
+    };
+    window.addEventListener('message', receive); return () => window.removeEventListener('message', receive);
+  }, [video, c]);
   useEffect(() => { let live = true; void refresh(true).catch(() => { if (live) setError(c.error); }).finally(() => { if (live) setLoading(false); }); return () => { live = false; }; }, [refresh, c]);
   useEffect(() => {
     if (!active) return;
@@ -260,7 +292,11 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
   }, [count]);
   // Deck navigation uses the upstream message protocol; rebuilding srcdoc on
   // every reported slide would reset the runtime and undo the user's navigation.
-  const srcdoc = useMemo(() => document ? studioPreviewSource(visibleHtml, slide, mode === 'edit', deck, false, true) : '', [visibleHtml, mode, deck]);
+  const srcdoc = useMemo(() => document && (!video || videoRuntime) ? studioPreviewSource(visibleHtml, slide, mode === 'edit', deck, false, true, video ? videoRuntime : undefined) : '', [visibleHtml, mode, deck, video, videoRuntime]);
+  function seekVideo(time: number) {
+    videoTimeRef.current = time; setVideoTime(time);
+    frame.current?.contentWindow?.postMessage({ type: 'semurai:video', time }, '*');
+  }
   function navigateSlide(index: number) {
     setSlide(index);
     frame.current?.contentWindow?.postMessage({ type: 'od:slide', action: 'go', index }, '*');
@@ -269,12 +305,29 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
   async function saveCurrent(): Promise<SavedSource | null> {
     const current = latest.current;
     if (!current || JSON.stringify(current) === JSON.stringify(baseline.current?.document)) return baseline.current;
-    await api('document', 'PUT', { base_version: baseline.current?.version ?? 0, base_revision: baseline.current?.document_hash ?? null, document: current });
-    const value = (await api('document')).data as SavedSource;
-    baseline.current = value; setSaved(value);
-    if (latest.current === current) { latest.current = value.document; setDocument(value.document); }
-    setVersions((await api('versions')).data);
-    return value;
+    renderSave.current = video;
+    try {
+      if (video) {
+        const source = JSON.stringify(current);
+        if (renderKey.current?.source !== source) renderKey.current = { source, key: crypto.randomUUID() };
+        const result = await api('jobs', 'POST', { operation: 'render', document: current, brief: v.save, quality: 'standard',
+          use_media_library: false, base_version: baseline.current?.version ?? 0, base_revision: baseline.current?.document_hash ?? null, idempotency_key: renderKey.current.key });
+        setJobs(previous => [result.data, ...previous.filter(job => job.id !== result.data.id)]);
+        let job = result.data as Job;
+        while (!terminal.has(job.status)) {
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          job = (await api('jobs/' + job.id)).data;
+          setJobs(previous => previous.map(item => item.id === job.id ? job : item));
+        }
+        if (job.status !== 'completed') { renderKey.current = null; throw new Error(job.status === 'conflicted' ? c.conflict : c.error); }
+        renderKey.current = null;
+      } else await api('document', 'PUT', { base_version: baseline.current?.version ?? 0, base_revision: baseline.current?.document_hash ?? null, document: current });
+      const value = (await api('document')).data as SavedSource;
+      baseline.current = value; setSaved(value);
+      if (latest.current === current) { latest.current = value.document; setDocument(value.document); }
+      setVersions((await api('versions')).data);
+      return value;
+    } finally { renderSave.current = false; }
   }
   async function action(work: () => Promise<void>) { setBusy(true); setError(''); try { await work(); } catch (reason) { setError(reason instanceof Error ? reason.message : c.error); } finally { setBusy(false); } }
   async function send() {
@@ -326,6 +379,18 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
         throw new Error(c.exportSaveFailed);
       }
       downloadStudioFile(content, mime, context.project.title, '.' + format);
+    });
+  }
+  async function downloadVideo() {
+    await action(async () => {
+      const snapshot = await saveCurrent();
+      if (!snapshot) return;
+      const result = (await api('video')).data;
+      if (result.version !== snapshot.version) throw new Error(c.conflict);
+      const bytes = Uint8Array.from(atob(result.file_base64), character => character.charCodeAt(0));
+      const digest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(byte => byte.toString(16).padStart(2, '0')).join('');
+      if (digest !== result.sha256) throw new Error(c.error);
+      downloadStudioFile(bytes, 'video/mp4', context.project.title, '.mp4');
     });
   }
   async function downloadExport(file: ProjectExport) {
@@ -385,9 +450,15 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
       onPointerMove={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) setChatWidth(Math.max(280, Math.min(640, window.innerWidth - 480, resizeStart.current.width + event.clientX - resizeStart.current.x))); }}
       onPointerUp={event => { event.currentTarget.releasePointerCapture(event.pointerId); setResizing(false); }} onLostPointerCapture={() => setResizing(false)} />
     <section className={styles.workspace}>
-      <header className={styles.header}>{chatCollapsed && <Button title={c.chat} onClick={() => setChatCollapsed(false)}><PanelLeftOpen size={16} /></Button>}<Button className={styles.mobileChatToggle} title={c.chat} onClick={() => setShowChat(true)}><MessageSquare size={16} /></Button><details className={styles.fileMenu}><summary><Code2 size={15} /><span>{activeFile}<small>{1 + (document?.files?.length ?? 0)} {c.files}</small></span><ChevronDown size={13} /></summary><nav aria-label={c.files}>{['index.html', ...(document?.files ?? []).map(file => file.path)].map(file => <button key={file} aria-current={activeFile === file ? 'page' : undefined} onClick={event => { selectFile(file); event.currentTarget.closest('details')?.removeAttribute('open'); }}><Code2 size={16} /><span>{file}</span>{file === activeFile && <Check size={14} />}</button>)}</nav></details><span className={styles.saveState}>{dirty ? c.unsaved : <><Check size={13} />{c.saved}</>}</span><button title={c.history} onClick={() => { setShowHistory(!showHistory); setShowExports(false); setReview(null); }}><History size={17} /></button><Button disabled={!dirty || busy} onClick={() => { void action(async () => { await saveCurrent(); }); }}>{c.save}</Button><details className={styles.exportMenu}><summary><Download size={15} />{c.export}</summary><div><Button disabled={!document || busy} onClick={() => { void exportFile('html'); }}>{c.downloadHtml}</Button>{deck && <Button disabled={!document || busy} onClick={() => { void exportFile('pptx'); }}>{c.downloadPptx}</Button>}<Button disabled={!document || busy} onClick={() => { if (document) void action(async () => { await exportStudioDocument(visibleHtml, deck, 'print', path, context.project.title); }); }}>{c.print}</Button><Button onClick={() => { setShowExports(!showExports); setShowHistory(false); setReview(null); }}>{c.exportHistory}</Button></div></details></header>
+      <header className={styles.header}>{chatCollapsed && <Button title={c.chat} onClick={() => setChatCollapsed(false)}><PanelLeftOpen size={16} /></Button>}<Button className={styles.mobileChatToggle} title={c.chat} onClick={() => setShowChat(true)}><MessageSquare size={16} /></Button><details className={styles.fileMenu}><summary><Code2 size={15} /><span>{activeFile}<small>{1 + (document?.files?.length ?? 0)} {c.files}</small></span><ChevronDown size={13} /></summary><nav aria-label={c.files}>{['index.html', ...(document?.files ?? []).map(file => file.path)].map(file => <button key={file} aria-current={activeFile === file ? 'page' : undefined} onClick={event => { selectFile(file); event.currentTarget.closest('details')?.removeAttribute('open'); }}><Code2 size={16} /><span>{file}</span>{file === activeFile && <Check size={14} />}</button>)}</nav></details><span className={styles.saveState}>{dirty ? c.unsaved : <><Check size={13} />{c.saved}</>}</span><button title={c.history} onClick={() => { setShowHistory(!showHistory); setShowExports(false); setReview(null); }}><History size={17} /></button><Button disabled={!dirty || busy || expired || !!active} onClick={() => { void action(async () => { await saveCurrent(); }); }}>{video ? v.save : c.save}</Button><details className={styles.exportMenu}><summary><Download size={15} />{c.export}</summary><div>{video && <Button disabled={!document || busy || expired || !!active} onClick={() => { void downloadVideo(); }}>MP4</Button>}<Button disabled={!document || busy} onClick={() => { void exportFile('html'); }}>{c.downloadHtml}</Button>{deck && <Button disabled={!document || busy} onClick={() => { void exportFile('pptx'); }}>{c.downloadPptx}</Button>}<Button disabled={!document || busy} onClick={() => { if (document) void action(async () => { await exportStudioDocument(visibleHtml, deck, 'print', path, context.project.title); }); }}>{c.print}</Button><Button onClick={() => { setShowExports(!showExports); setShowHistory(false); setReview(null); }}>{c.exportHistory}</Button></div></details></header>
       <div className={styles.toolbar}><div className={styles.segment}><button className={mode !== 'source' ? styles.active : ''} onClick={() => setMode('preview')}><Eye size={15} />{c.preview}</button><button className={mode === 'source' ? styles.active : ''} onClick={() => setMode('source')}><Code2 size={15} />{c.source}</button></div><div className={styles.devices} role="group" aria-label={c.preview}>{[[0, c.desktop, Monitor], [768, c.tablet, Tablet], [390, c.mobile, Smartphone]].map(([width, label, DeviceIcon]) => { const Icon = DeviceIcon as typeof Monitor; return <Button key={String(width)} title={String(label)} aria-label={String(label)} aria-pressed={device === width} onClick={() => setDevice(Number(width))}><Icon size={16} /><span>{String(label)}</span></Button>; })}</div><div className={styles.spacer} />{!deck && <StudioImageMenu locale={context.project.uiLocale} disabled={!document || busy || expired} onSelect={initialSource => { if (document) setImagePicker({ source: visibleHtml, target: mode === 'edit' ? selected : null, initialSource }); }} />}<button disabled={!undo.length} title={c.undo} onClick={() => travel('undo')}><RotateCcw size={16} /></button><button disabled={!redo.length} title={c.redo} onClick={() => travel('redo')}><RotateCw size={16} /></button><Button aria-pressed={review === 'element'} title={r.select} disabled={!document || mode === 'source'} onClick={() => { setMode('preview'); setReview(review === 'element' ? null : 'element'); setShowHistory(false); setShowExports(false); }}><MousePointer2 size={16} /></Button><Button aria-pressed={review === 'area'} title={r.area} disabled={!document || mode === 'source'} onClick={() => { setMode('preview'); setReview(review === 'area' ? null : 'area'); setShowHistory(false); setShowExports(false); }}><Scan size={16} /></Button><Button aria-pressed={!!review} title={r.comments} aria-label={`${r.comments} (${fileComments.length})`} disabled={!document} onClick={() => { setMode('preview'); setReview(review ? null : 'element'); setShowHistory(false); setShowExports(false); }}><MessageSquare size={16} /><span className={styles.commentCount} aria-hidden="true">{fileComments.length}</span></Button><button className={showLayers ? styles.active : ''} title={c.layers} onClick={() => { setShowLayers(!showLayers); setMode('edit'); }}><Layers size={16} /></button><button className={mode === 'edit' ? styles.active : ''} onClick={() => setMode(mode === 'edit' ? 'preview' : 'edit')}><Pencil size={15} />{c.edit}</button><button title={deck ? c.present : c.fullscreen} disabled={!document || (deck && count === 0)} onClick={() => { if (deck && document) setPresentation({ document, slide }); else void viewport.current?.requestFullscreen(); }}><Maximize2 size={16} /></button><select value={zoom} aria-label={c.zoom} onChange={event => setZoom(Number(event.target.value))}>{[50, 75, 100, 125, 150].map(value => <option key={value} value={value}>{value}%</option>)}</select></div>
 
+      {video && document && mode !== 'source' && <div className={styles.videoControls}>
+        <Button disabled={!videoRuntime || mode === 'edit'} onClick={() => { videoTimeRef.current = videoTime; frame.current?.contentWindow?.postMessage({ type: 'semurai:video', play: !videoPlaying }, '*'); }}>{videoPlaying ? v.pause : v.play}</Button>
+        <input type="range" aria-label={v.time} min={0} max={videoDuration || 60} step={1 / 30} value={videoTime} onChange={event => seekVideo(Number(event.target.value))} />
+        <output>{videoTime.toFixed(1)} / {videoDuration.toFixed(1)} s</output>
+        {busy && renderSave.current && <span role="status">{v.rendering}</span>}
+      </div>}
       {expired && <div className={styles.error} role="alert">{c.expired}<a href={safeStudioReturn(context)!} target="_blank" rel="noopener noreferrer">{c.back}</a></div>}
       {error && <div className={styles.error} role="alert">{error}<button onClick={() => setError('')}><X size={15} /></button></div>}
       <div ref={body} className={styles.body}>
@@ -403,7 +474,7 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
               }
               setAreaBox(undefined);
             }} onPointerCancel={() => { areaStart.current = null; setAreaBox(undefined); }}>{areaBox && <div className={styles.selectionBox} style={{ left: areaBox.x, top: areaBox.y, width: areaBox.width, height: areaBox.height }} />}</div>}
-            <iframe ref={frame} title={c.preview} sandbox="allow-scripts allow-modals" srcDoc={srcdoc} onLoad={() => { frame.current?.contentWindow?.postMessage({ type: 'od-edit-mode', enabled: mode === 'edit' }, '*'); setFrameReady(value => value + 1); }} /></div>}
+            <iframe ref={frame} title={c.preview} sandbox="allow-scripts allow-modals" srcDoc={srcdoc} onLoad={() => { frame.current?.contentWindow?.postMessage({ type: 'od-edit-mode', enabled: mode === 'edit' }, '*'); if (video) seekVideo(videoTimeRef.current); setFrameReady(value => value + 1); }} /></div>}
           {deck && document && mode !== 'source' && <label className={styles.notes}><span>{c.notes} · {slide + 1}/{count}</span><textarea value={document.notes?.[slide] ?? ''} placeholder={c.notes} onChange={event => { const notes = Array.from({ length: count }, (_, index) => document.notes?.[index] ?? ''); notes[slide] = event.target.value; change({ ...document, notes }); }} /></label>}
         </div>
         {review && focusedComment && commentPoint && <section className={styles.commentPopover} data-testid="studio-comment-popover" aria-label={r.comments} style={{ left: commentPoint.x, top: commentPoint.y, maxHeight: `min(520px, 55vh, calc(100% - ${commentPoint.y + 8}px))` }}>

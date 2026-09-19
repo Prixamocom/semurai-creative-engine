@@ -98,6 +98,7 @@ const residualAllowedExactPaths = new Set([
   // from the pinned vendor bundle and artifact-renderer TypeScript build.
   "apps/web/public/semurai-export/dom-to-pptx.js",
   "apps/web/public/semurai-export/renderer.js",
+  "apps/web/public/semurai-export/gsap.min.js",
   // PostCSS loads Tailwind through a web-local .mjs compatibility config entry.
   "apps/web/postcss.config.mjs",
   "scripts/bake-html-ppt-examples.mjs",

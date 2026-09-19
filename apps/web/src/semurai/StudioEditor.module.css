@@ -166,3 +166,8 @@
 }
 
 @media (max-width: 800px) { .chat .chatHeader .collapseChat, .chat .chatHeader > button:last-child { display: none; } }
+
+.videoControls { display: flex; align-items: center; gap: 12px; padding: 10px 18px; border-bottom: 1px solid var(--border); background: var(--bg-panel); flex-wrap: wrap; }
+.videoControls input { flex: 1; min-width: 100px; accent-color: #b5c900; }
+.videoControls output { font-size: 12px; font-variant-numeric: tabular-nums; }
+.videoControls span { font-size: 12px; }

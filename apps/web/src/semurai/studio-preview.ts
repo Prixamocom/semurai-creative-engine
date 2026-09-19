@@ -3,11 +3,12 @@ import { STUDIO_COMMENT_BRIDGE } from './studio-comment-bridge';
 import { DECK_SKELETON_HTML } from '@open-design/contracts';
 import { findRealTagEnd, HTML_TAG_PATTERNS } from '@open-design/contracts/runtime/html-injection-points';
 import { annotateManualEditSourcePaths, annotateMissingOdIds, buildSrcdoc } from '../runtime/srcdoc';
+import { STUDIO_VIDEO_BRIDGE } from './studio-video';
 
 export const STUDIO_ARTIFACT_CSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'";
 
 /** Prepare an opaque preview; never persist this derivative as the user's source. */
-export function studioPreviewSource(source: string, slide = 0, edit = false, deck = true, annotate = false, markers = false): string {
+export function studioPreviewSource(source: string, slide = 0, edit = false, deck = true, annotate = false, markers = false, videoRuntime?: string): string {
   // Map identities before removing unsafe author nodes so a manual edit still
   // resolves the same element in the original, unsanitized canonical source.
   const mapped = annotateManualEditSourcePaths(annotateMissingOdIds(source));
@@ -17,6 +18,15 @@ export function studioPreviewSource(source: string, slide = 0, edit = false, dec
     FORBID_ATTR: ['srcset', 'ping', 'action', 'formaction', 'autofocus'],
   });
   const parsed = new DOMParser().parseFromString(safe, 'text/html');
+  if (videoRuntime) {
+    const scripts = [...new DOMParser().parseFromString(source, 'text/html').querySelectorAll('script:not([src])')]
+      .filter(script => !script.getAttribute('type') || script.getAttribute('type') === 'text/javascript')
+      .map(script => script.textContent ?? '');
+    for (const code of [videoRuntime, ...scripts, STUDIO_VIDEO_BRIDGE]) {
+      const script = parsed.createElement('script');
+      script.textContent = code.replace(/<\/script/gi, '<\\/script'); parsed.body.appendChild(script);
+    }
+  }
   for (const element of parsed.querySelectorAll('[href], [xlink\\:href]')) {
     for (const name of ['href', 'xlink:href']) {
       const value = element.getAttribute(name);
