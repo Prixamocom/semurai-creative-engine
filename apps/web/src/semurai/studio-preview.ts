@@ -12,7 +12,17 @@ export function studioPreviewSource(source: string, slide = 0, edit = false, dec
   // Map identities before removing unsafe author nodes so a manual edit still
   // resolves the same element in the original, unsanitized canonical source.
   const mapped = annotateManualEditSourcePaths(annotateMissingOdIds(source));
-  const safe = DOMPurify.sanitize(mapped, {
+  const previewDocument = new DOMParser().parseFromString(mapped, 'text/html');
+  for (const style of previewDocument.querySelectorAll('style')) {
+    // CSS comments and strings can contain HTML examples. Escape their text
+    // so DOMPurify's XML/mutation checks do not discard the entire stylesheet.
+    // Whitespace after a range comparator preserves its CSS meaning too.
+    style.textContent = (style.textContent ?? '').replace(
+      /(\/\*[\s\S]*?\*\/|"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*')|<(?=\d)/g,
+      (match, literal: string | undefined) => literal ? literal.replace(/</g, '\\3c ') : '< ',
+    );
+  }
+  const safe = DOMPurify.sanitize(previewDocument.documentElement.outerHTML, {
     WHOLE_DOCUMENT: true,
     FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'base', 'meta', 'link', 'form'],
     FORBID_ATTR: ['srcset', 'ping', 'action', 'formaction', 'autofocus'],
