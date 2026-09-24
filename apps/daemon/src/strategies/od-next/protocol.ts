@@ -53,6 +53,8 @@ interface CapturedBlock {
   exactOpen: boolean;
   exactClose: boolean;
   tooLarge: boolean;
+  /** The non-exact-wrapper issue raised at open time, withdrawn on recovery. */
+  openIssue?: OdNextProtocolIssue;
 }
 
 const MACHINE = {
@@ -147,6 +149,46 @@ function jsonValue(value: string): { ok: true; value: unknown } | { ok: false } 
 }
 
 /**
+ * A clarification turn cannot lock the execution mode - the daemon owns
+ * mode locking after clarification resolves - so an agent that predicts a
+ * mode alongside outcome clarification_required has emitted an authority-
+ * free field, not a defect. Discard exactly that field; every other shape
+ * passes through to schema validation unchanged. Pure so the false-opening
+ * recovery can validate a candidate block without recording anything.
+ */
+function normalizedMachineValue(
+  kind: MachineKind,
+  value: unknown,
+): { value: unknown; normalized: boolean } {
+  if (kind !== 'runtime') return { value, normalized: false };
+  if (
+    typeof value !== 'object'
+    || value === null
+    || Array.isArray(value)
+  ) return { value, normalized: false };
+  const record = value as Record<string, unknown>;
+  if (
+    record['outcome'] !== 'clarification_required'
+    || record['executionMode'] === null
+    || record['executionMode'] === undefined
+  ) return { value, normalized: false };
+  return { value: { ...record, executionMode: null }, normalized: true };
+}
+
+/**
+ * True when a block body would be accepted as strict wire output by
+ * `parseKind`: exact wrapper, JSON only, schema-valid after normalization.
+ */
+function isStrictMachineBody(kind: MachineKind, body: string): boolean {
+  const json = jsonValue(body.trim());
+  if (!json.ok) return false;
+  const schema = kind === 'plan'
+    ? OpenDesignPlanContractV2Schema
+    : StrategyRuntimeStateV2Schema;
+  return schema.safeParse(normalizedMachineValue(kind, json.value).value).success;
+}
+
+/**
  * Incremental, strategy-only stream boundary. Exact reserved machine blocks
  * are withheld before callers can broadcast or persist the returned delta.
  * The boundary deliberately has no ordinary-Run auto-detection: Task10 owns
@@ -188,6 +230,14 @@ export class OdNextMachineProtocolStream {
   private readonly normalizations: string[] = [];
   private readonly visible: string[] = [];
   private finished = false;
+  /**
+   * Set only while `replayRecoveredProse` re-drains text that a false opening
+   * tag had swallowed. In that mode a reserved tag opens a machine block only
+   * when it starts a line; any other reserved markup is prose that merely
+   * names the tag, and is stripped instead of opening or failing a block.
+   */
+  private proseReplay = false;
+  private proseAtLineStart = false;
 
   constructor(options: { maxMachineBlockBytes?: number } = {}) {
     const max = options.maxMachineBlockBytes ?? 256 * 1024;
@@ -251,7 +301,7 @@ export class OdNextMachineProtocolStream {
   private drain(emitted: string[], finishing: boolean): void {
     while (this.pending.length > 0) {
       if (this.current) {
-        if (!this.drainMachine(finishing)) return;
+        if (!this.drainMachine(emitted, finishing)) return;
       } else if (!this.drainVisible(emitted, finishing)) {
         return;
       }
@@ -275,10 +325,17 @@ export class OdNextMachineProtocolStream {
       return hold === 0;
     }
     if (first > 0) {
-      emitted.push(this.pending.slice(0, first));
+      const prose = this.pending.slice(0, first);
+      emitted.push(prose);
       this.pending = this.pending.slice(first);
+      this.proseAtLineStart = prose.endsWith('\n');
       return true;
     }
+    if (this.proseReplay && !this.proseAtLineStart) {
+      this.stripReservedMention(lower);
+      return true;
+    }
+    this.proseAtLineStart = false;
 
     const lowerAtMarker = this.pending.toLowerCase();
     const kind = lowerAtMarker.startsWith(`<${MACHINE.plan.tag}`)
@@ -308,12 +365,12 @@ export class OdNextMachineProtocolStream {
       return true;
     }
     const exactOpen = rawTag === `<${MACHINE[kind].tag}>`;
-    if (!exactOpen) {
-      this.issue(
+    const openIssue = exactOpen
+      ? undefined
+      : this.issue(
         'od_next_protocol_machine_block_malformed',
         `Machine block <${MACHINE[kind].tag}> must use the exact wrapper.`,
       );
-    }
     this.current = {
       kind,
       body: '',
@@ -321,11 +378,29 @@ export class OdNextMachineProtocolStream {
       exactOpen,
       exactClose: false,
       tooLarge: false,
+      ...(openIssue ? { openIssue } : {}),
     };
     return true;
   }
 
-  private drainMachine(finishing: boolean): boolean {
+  /**
+   * Prose-replay only: drop one reserved tag mention that does not start a
+   * line. The tag markup (up to `>` on the same line, or just the reserved
+   * prefix when the mention has no `>`) is never shown, matching how every
+   * other reserved wrapper is withheld from visible text.
+   */
+  private stripReservedMention(lower: string): void {
+    const prefix = RESERVED_PREFIXES.find((candidate) => lower.startsWith(candidate))!;
+    const lineEnd = this.pending.indexOf('\n');
+    const tagEnd = this.pending.indexOf('>');
+    const cut = tagEnd !== -1 && (lineEnd === -1 || tagEnd < lineEnd)
+      ? tagEnd + 1
+      : prefix.length;
+    this.pending = this.pending.slice(cut);
+    this.proseAtLineStart = false;
+  }
+
+  private drainMachine(emitted: string[], finishing: boolean): boolean {
     const current = this.current;
     if (!current) return true;
     // The versioned wire examples require a line-delimited wrapper. Requiring
@@ -371,14 +446,103 @@ export class OdNextMachineProtocolStream {
     const rawTag = this.pending.slice(0, tagEnd + 1);
     this.pending = this.pending.slice(tagEnd + 1);
     current.exactClose = rawTag === `${closePrefix}>`;
+    this.proseAtLineStart = false;
     if (!current.exactClose) {
       this.issue(
         'od_next_protocol_machine_block_malformed',
         `Machine block </${MACHINE[current.kind].tag}> must use the exact wrapper.`,
       );
+    } else if (this.recoverFalseOpening(current, emitted)) {
+      return true;
     }
     this.finishCurrent();
     return true;
+  }
+
+  /**
+   * Tolerant recovery for an opening tag that was only named in prose.
+   *
+   * Opening tags are recognized anywhere so nothing machine-like can stream
+   * to the UI, but a model that merely mentions `<open-design-...>` in a
+   * sentence (a handoff summary, inline code) then opens a block that
+   * swallows the rest of its reply up to the real line-start closing tag.
+   *
+   * When such a block closes exactly and its body is not strict wire output,
+   * look for the LAST line-start copy of the same opening tag inside the
+   * body. If the text after it is a strict block of the same kind (exact
+   * wrapper, JSON only, schema-valid), that tail is the real block, and the
+   * text before it is prose the false tag swallowed: it is replayed in order
+   * ahead of any later output, with reserved markup that does not start a
+   * line stripped. Otherwise nothing changes and parseKind reports exactly
+   * the issues it always did.
+   *
+   * Security: the closing tag still has to start a line, so a JSON string
+   * containing `</open-design-...>` cannot end suppression. A well-formed
+   * JSON body cannot contain a raw newline followed by `<`, and a body that
+   * itself starts like machine data (`{`, `[` or a fence) is never replayed,
+   * so a real but malformed block is not turned into visible text. The
+   * replayed prose goes back through the same drain, so any complete
+   * line-start block inside it (for example a real Plan Contract swallowed
+   * by a false Runtime State opening) is captured, never shown.
+   */
+  private recoverFalseOpening(current: CapturedBlock, emitted: string[]): boolean {
+    if (current.tooLarge) return false;
+    const { tag } = MACHINE[current.kind];
+    if (current.exactOpen && isStrictMachineBody(current.kind, current.body)) return false;
+    if (/^\s*(?:[{[]|```)/u.test(current.body)) return false;
+    const innerOpen = current.body.toLowerCase().lastIndexOf(`\n<${tag}`);
+    if (innerOpen === -1) return false;
+    const tagStart = innerOpen + 1;
+    const tagEnd = current.body.indexOf('>', tagStart);
+    if (tagEnd === -1 || current.body.slice(tagStart, tagEnd + 1) !== `<${tag}>`) return false;
+    const tail = current.body.slice(tagEnd + 1);
+    if (!isStrictMachineBody(current.kind, tail)) return false;
+
+    if (current.openIssue) {
+      const index = this.streamIssues.indexOf(current.openIssue);
+      if (index !== -1) this.streamIssues.splice(index, 1);
+    }
+    this.current = null;
+    // Keep the newline before the real tag, as ordinary prose before a
+    // line-start block keeps it.
+    this.replayRecoveredProse(current.body.slice(0, tagStart), emitted);
+    this.blocks.push({
+      kind: current.kind,
+      body: tail,
+      bodyBytes: Buffer.byteLength(tail, 'utf8'),
+      exactOpen: true,
+      exactClose: true,
+      tooLarge: false,
+    });
+    this.proseAtLineStart = false;
+    return true;
+  }
+
+  /**
+   * Re-drain complete, already-withheld text in prose-replay mode. The outer
+   * pending buffer and mode are saved and restored, so a replay nested inside
+   * another replay (a recovered block inside recovered prose) stays ordered.
+   */
+  private replayRecoveredProse(text: string, emitted: string[]): void {
+    const savedPending = this.pending;
+    const savedReplay = this.proseReplay;
+    this.pending = text;
+    this.proseReplay = true;
+    // The swallowed text starts right after the false tag, i.e. mid-line.
+    this.proseAtLineStart = false;
+    this.drain(emitted, true);
+    if (this.current) {
+      // A line-start opening inside the recovered prose that never closed
+      // there: the same verdict finish() gives an unclosed block.
+      this.current.exactClose = false;
+      this.issue(
+        'od_next_protocol_machine_block_malformed',
+        `Unclosed <${MACHINE[this.current.kind].tag}> block.`,
+      );
+      this.finishCurrent();
+    }
+    this.pending = savedPending;
+    this.proseReplay = savedReplay;
   }
 
   private appendMachineBody(value: string): void {
@@ -449,33 +613,19 @@ export class OdNextMachineProtocolStream {
     return recovered.success ? { repair: recovered.data as Parsed } : {};
   }
 
-  /**
-   * A clarification turn cannot lock the execution mode — the daemon owns
-   * mode locking after clarification resolves — so an agent that predicts a
-   * mode alongside outcome clarification_required has emitted an authority-
-   * free field, not a defect. Discard exactly that field and record the
-   * normalization; every other shape passes through to schema validation
-   * unchanged.
-   */
+  /** See `normalizedMachineValue`; this variant also records the normalization. */
   private normalizeMachineValue(kind: MachineKind, value: unknown): unknown {
-    if (kind !== 'runtime') return value;
-    if (
-      typeof value !== 'object'
-      || value === null
-      || Array.isArray(value)
-    ) return value;
-    const record = value as Record<string, unknown>;
-    if (
-      record['outcome'] !== 'clarification_required'
-      || record['executionMode'] === null
-      || record['executionMode'] === undefined
-    ) return value;
-    this.normalizations.push('od_next_protocol_clarification_execution_mode_normalized');
-    return { ...record, executionMode: null };
+    const result = normalizedMachineValue(kind, value);
+    if (result.normalized) {
+      this.normalizations.push('od_next_protocol_clarification_execution_mode_normalized');
+    }
+    return result.value;
   }
 
-  private issue(code: OdNextProtocolReasonCode, detail: string): void {
-    this.streamIssues.push({ code, detail });
+  private issue(code: OdNextProtocolReasonCode, detail: string): OdNextProtocolIssue {
+    const issue = { code, detail };
+    this.streamIssues.push(issue);
+    return issue;
   }
 }
 
