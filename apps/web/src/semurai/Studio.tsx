@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useI18n } from '../i18n';
-import { safeStudioReturn, studioSessionPath, type StudioContext } from './studio-context';
+import { safeStudioReturn, studioDocumentTitle, studioSessionPath, type StudioContext } from './studio-context';
 import './studio.css';
 import { StudioEditor } from './StudioEditor';
 
@@ -53,6 +53,8 @@ export function SemuraiStudio() {
       .catch(() => { if (!controller.signal.aborted) setUnavailable(true); });
     return () => { controller.abort(); clearTimeout(expiry); };
   }, [setLocale]);
+  const projectTitle = context?.project.title;
+  useEffect(() => { document.title = studioDocumentTitle(projectTitle); }, [projectTitle]);
   async function closeSession() {
     const path = studioSessionPath(window.location.pathname);
     if (!path) return;

@@ -886,7 +886,7 @@ function cleanAgentVersionLabel(
 }
 
 function displayAgentName(agent: Pick<AgentInfo, 'id' | 'name'>): string {
-  return agent.id === 'amr' ? 'OpenDesign' : agent.name;
+  return agent.id === 'amr' ? 'Semurai Creative' : agent.name;
 }
 
 const AGENT_CLI_ENV_FIELDS = [
@@ -4522,7 +4522,7 @@ export function SettingsDialog({
                     <strong>{t('settings.cloudCalloutTitle')}</strong>
                     <p>{t('settings.cloudCalloutBody')}</p>
                   </div>
-                  {/* Same device-auth flow as the 授权 button on the OpenDesign
+                  {/* Same device-auth flow as the 授权 button on the Semurai Creative
                       agent card below — the AMR/vela session IS the cloud
                       identity, so signing in here is that one flow. This used to
                       navigate to onboarding, which walked the user through the

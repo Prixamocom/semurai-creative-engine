@@ -2785,7 +2785,7 @@ function pathMatchesFolderFileBasename(
 }
 
 function hasPluginFinalActionHint(content: string): boolean {
-  return /\b(Add to My plugins|OpenDesign PR|Publish repo|plugin publish|ready to publish|ready to add)\b/i.test(
+  return /\b(Add to My plugins|(?:Semurai Creative|OpenDesign) PR|Publish repo|plugin publish|ready to publish|ready to add)\b/i.test(
     content,
   );
 }

@@ -58,18 +58,18 @@ const NOTION_PAGE_BODY_TOOL_NAMES = [
   'notion.notion_get_page',
 ];
 
-const CONNECTOR_MEMORY_SYSTEM_PROMPT = `You are a design-memory extractor for OpenDesign connected-app context.
+const CONNECTOR_MEMORY_SYSTEM_PROMPT = `You are a design-memory extractor for Semurai Creative connected-app context.
 
-You will receive compacted read-only data from apps such as Notion, Figma, Linear, Google Drive, GitHub, and Slack. Propose only durable memories that would improve future OpenDesign design work.
+You will receive compacted read-only data from apps such as Notion, Figma, Linear, Google Drive, GitHub, and Slack. Propose only durable memories that would improve future Semurai Creative design work.
 
 A fact is worth remembering when ALL of these are true:
 - It is about design: visual taste, UI/UX preferences, brand/design-system context, reusable assets or references, product/design decisions, target audience, interface flows, components, layout, typography, color, accessibility, or recurring design workflow.
 - It will plausibly remain useful for at least a week.
-- It would change how OpenDesign creates, critiques, edits, or explains future design artifacts.
+- It would change how Semurai Creative creates, critiques, edits, or explains future design artifacts.
 
 Do NOT save:
 - Generic connector/read summaries, source counts, notifications, repo issue lists, PR/task status, raw search results, raw messages, raw document dumps, or short-lived todo churn.
-- Meta language about extraction or saving, including phrases like "OpenDesign read X", "Found N readable items", "Summary from X", "context summary", or "Save this if it should be reused".
+- Meta language about extraction or saving, including phrases like "Semurai Creative read X", "Found N readable items", "Summary from X", "context summary", or "Save this if it should be reused".
 - Non-design facts that might be useful to a generic assistant but would not affect design output.
 - Secrets, access tokens, private credentials, or sensitive personal content.
 - Anything already captured in existing memory.
@@ -87,7 +87,7 @@ be the remembered fact itself, not an explanation of how it was found.
 
 Type rules:
 - user: who they are, role, expertise, long-term goals
-- feedback: preferences about how OpenDesign should work or answer
+- feedback: preferences about how Semurai Creative should work or answer
 - project: ongoing initiatives, decisions, constraints, or priorities
 - reference: stable pointers to external apps, repos, docs, channels, boards, dashboards`;
 
@@ -1282,7 +1282,7 @@ export async function suggestMemoryFromConnectors(
   const drafts = await suggestWithLLM(
     dataDir,
     {
-      userMessage: `Suggest durable OpenDesign memories from connected apps. Search hint: ${options.query?.trim().slice(0, 240) || DEFAULT_CONNECTOR_MEMORY_QUERY}`,
+      userMessage: `Suggest durable Semurai Creative memories from connected apps. Search hint: ${options.query?.trim().slice(0, 240) || DEFAULT_CONNECTOR_MEMORY_QUERY}`,
       assistantMessage: context.connectorContext,
     },
     {
@@ -1331,7 +1331,7 @@ export async function extractMemoryFromConnectors(
   const changed = await extractWithLLM(
     dataDir,
     {
-      userMessage: `Extract durable OpenDesign memory from connected apps. Search hint: ${options.query?.trim().slice(0, 240) || DEFAULT_CONNECTOR_MEMORY_QUERY}`,
+      userMessage: `Extract durable Semurai Creative memory from connected apps. Search hint: ${options.query?.trim().slice(0, 240) || DEFAULT_CONNECTOR_MEMORY_QUERY}`,
       assistantMessage: context.connectorContext,
     },
     {

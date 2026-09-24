@@ -96,7 +96,7 @@ async function launchOnWindows(command: string): Promise<TerminalLaunchResult> {
   try {
     await execFileAsync(
       'cmd.exe',
-      ['/c', 'start', 'OpenDesign', 'cmd.exe', '/k', command],
+      ['/c', 'start', 'Semurai Creative', 'cmd.exe', '/k', command],
       { timeout: 5_000 },
     );
     return { ok: true, platform: 'win32', via: 'cmd /c start' };

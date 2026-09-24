@@ -1,14 +1,14 @@
 {
   "$schema": "./schema.ts",
-  "_doc": "Worked example — OpenDesign pitch deck. 11 slides covering cover, two sections, four content slides, one stats, one quote, one CTA, one end. Reuses brand identity and assets from the sister open-design-landing skill. Run `npx tsx scripts/compose.ts inputs.example.json example.html` to build.",
+  "_doc": "Worked example — Semurai Creative pitch deck. 11 slides covering cover, two sections, four content slides, one stats, one quote, one CTA, one end. Reuses brand identity and assets from the sister open-design-landing skill. Run `npx tsx scripts/compose.ts inputs.example.json example.html` to build.",
 
   "brand": {
-    "name": "OpenDesign",
+    "name": "Semurai Creative",
     "mark": "Ø",
     "meta": { "title": "Studio Nº 01", "subtitle": "Berlin / Open / Earth" },
     "filed_under": "Design · Intelligence",
     "tagline": "Designing intelligence with skills, taste, and your own agent.",
-    "description": "OpenDesign pitch deck — Vol. 01.",
+    "description": "Semurai Creative pitch deck — Vol. 01.",
     "locale": "en",
     "edition": "Vol. 01 / Issue Nº 26",
     "version": "v0.3.0",
@@ -26,7 +26,7 @@
     "status": "Live · v0.3.0"
   },
 
-  "deck_title": "OpenDesign · Vol. 01 / Issue Nº 26",
+  "deck_title": "Semurai Creative · Vol. 01 / Issue Nº 26",
 
   "slides": [
     {
@@ -41,7 +41,7 @@
         { "text": "code", "em": true },
         { "text": ".", "dot": true }
       ],
-      "subtitle": "The open-source alternative to Anthropic's Claude Design.",
+      "subtitle": "AI Design.",
       "lead": "12 coding agents drive 31 composable skills and 72 brand-grade design systems. Local-first, web-deployable, BYOK at every layer.",
       "image_slot": "hero",
       "meta": "Berlin · MMXXVI · 52.5200° N · 13.4050° E"
@@ -114,7 +114,7 @@
         { "value": "12", "label": "Agents",  "sub": "auto-detected on your $PATH" },
         { "value": "3",  "label": "Commands","sub": "from clone to first artifact" }
       ],
-      "caption": "OpenDesign v0.3.0 · Apache-2.0 · MMXXVI"
+      "caption": "Semurai Creative v0.3.0 · Apache-2.0 · MMXXVI"
     },
 
     {
@@ -165,7 +165,7 @@
     {
       "kind": "quote",
       "quote": [
-        { "text": "OpenDesign helped us turn vague " },
+        { "text": "Semurai Creative helped us turn vague " },
         { "text": "AI ideas", "em": true },
         { "text": " into a visual system that felt " },
         { "text": "sharp, believable,", "em": true },

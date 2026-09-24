@@ -1,3 +1,5 @@
+import { SEMURAI_PRODUCT_NAME } from './branding';
+
 export interface StudioContext {
   projectId: string;
   workspaceId: string;
@@ -13,6 +15,12 @@ export interface StudioContext {
   };
   returnUrl: string;
   expiresAt: number;
+}
+
+/** Browser tab title for a Studio project: "<project name> | Semurai Creative". */
+export function studioDocumentTitle(projectTitle?: string | null): string {
+  const name = (projectTitle ?? '').replace(/\s+/g, ' ').trim();
+  return name ? name + ' | ' + SEMURAI_PRODUCT_NAME : SEMURAI_PRODUCT_NAME;
 }
 
 export function studioSessionPath(pathname: string): string | null {

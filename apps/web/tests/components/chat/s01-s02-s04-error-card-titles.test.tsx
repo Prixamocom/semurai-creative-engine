@@ -23,6 +23,7 @@ import { forwardRef } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ChatPane } from '../../../src/components/ChatPane';
+import { zhCN } from '../../../src/i18n/locales/zh-CN';
 import type { AppConfig, ChatMessage } from '../../../src/types';
 
 /**
@@ -143,11 +144,11 @@ describe('报错卡标题 · S01 / S02 / S04', () => {
     expect(title).toBe('Claude 尚未登录');
   });
 
-  it('S04:Open Design 智能体没授权 —— 标题说的是 Open Design 自己', () => {
+  it('S04:Semurai Creative 智能体没授权 —— 标题说的是 Semurai Creative 自己', () => {
     const title = errorCardTitle({ agentId: 'amr', code: 'AMR_AUTH_REQUIRED' });
 
     expect(title).not.toMatch(/\{agent\}/);
-    expect(title).toBe('Open Design 尚未登录');
+    expect(title).toBe('Semurai Creative 尚未登录');
   });
 
   it('S02 和 S04 不是同一句话 —— 一个键装不下两格', () => {
@@ -163,7 +164,10 @@ describe('报错卡标题 · S01 / S02 / S04', () => {
      * 判据要钉在 S04 说的**是不是产品那句**:`OpenDesign`(无空格)是 agent
      * 标签,`Open Design`(有空格)才是产品名。
      */
-    expect(s04).not.toContain('OpenDesign');
+    // After the Semurai rebrand the agent label and the product name are the same
+    // string, so pin S04 to its own dictionary entry instead of the name.
+    expect(zhCN['chat.runError.title.signInRequired.amr']).not.toContain('{agent}');
+    expect(s04).toBe(zhCN['chat.runError.title.signInRequired.amr']);
   });
 
   /*
@@ -181,7 +185,7 @@ describe('报错卡标题 · S01 / S02 / S04', () => {
   it('AMR 的通用 401(UNAUTHORIZED)仍然是 S04 那句,不会掉到 S02', () => {
     const title = errorCardTitle({ agentId: 'amr', code: 'UNAUTHORIZED' });
 
-    expect(title).toBe('Open Design 尚未登录');
+    expect(title).toBe('Semurai Creative 尚未登录');
   });
 
   it('非 AMR 的通用 401(UNAUTHORIZED)是 S02 那句', () => {

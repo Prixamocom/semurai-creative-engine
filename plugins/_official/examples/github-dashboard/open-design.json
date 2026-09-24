@@ -48,7 +48,7 @@
   },
   "license": "MIT",
   "author": {
-    "name": "OpenDesign",
+    "name": "Semurai Creative",
     "url": "https://github.com/nexu-io"
   },
   "homepage": "https://github.com/nexu-io/open-design/tree/main/plugins/_official/examples/github-dashboard",
@@ -88,8 +88,8 @@
     },
     "useCase": {
       "query": {
-        "en": "Build a GitHub dashboard for nexu-io/open-design — stars, forks, contributors, issues, PRs, recent activity, and top contributors.",
-        "zh-CN": "使用这个插件完成以下任务：Build a GitHub dashboard for nexu-io/open-design — stars, forks, contributors, issues, PRs, recent activity, and top contributors."
+        "en": "Build a GitHub dashboard for semurai/ai-design — stars, forks, contributors, issues, PRs, recent activity, and top contributors.",
+        "zh-CN": "使用这个插件完成以下任务：Build a GitHub dashboard for semurai/ai-design — stars, forks, contributors, issues, PRs, recent activity, and top contributors."
       },
       "exampleOutputs": [
         {

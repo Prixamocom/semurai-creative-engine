@@ -3954,7 +3954,7 @@ async function renderHyperFrames(
       );
     } else {
       throw new Error(
-        'Open Design desktop frame renderer is unavailable. Open or upgrade the desktop client and try again.',
+        'Semurai Creative desktop frame renderer is unavailable. Open or upgrade the desktop client and try again.',
       );
     }
     const bytes = await readFile(tmpOutput);

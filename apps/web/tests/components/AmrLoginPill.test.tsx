@@ -107,7 +107,7 @@ describe('AmrAccountControl', () => {
     });
 
     expect(
-      screen.getByRole('group', { name: 'OpenDesign Cloud account status' }),
+      screen.getByRole('group', { name: 'Semurai Creative Cloud account status' }),
     ).toBeTruthy();
     expect(screen.getByText('Not signed in')).toBeTruthy();
     const signIn = screen.getByRole('button', { name: 'Sign in' });
@@ -476,7 +476,7 @@ describe('AmrLoginPill', () => {
     });
   });
 
-  it('passes the OpenDesign device id in login attribution when metrics consent is enabled', async () => {
+  it('passes the Semurai Creative device id in login attribution when metrics consent is enabled', async () => {
     const fetchMock = vi.fn(async (input, init) => {
       const url = typeof input === 'string' ? input : (input as URL).toString();
       if (url.endsWith('/api/integrations/vela/status')) {

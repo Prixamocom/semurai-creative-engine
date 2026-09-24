@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { safeStudioReturn, studioSessionPath, type StudioContext } from '../../src/semurai/studio-context';
+import { safeStudioReturn, studioDocumentTitle, studioSessionPath, type StudioContext } from '../../src/semurai/studio-context';
+
+describe('Semurai Studio document title', () => {
+  it('names the project before the product', () => {
+    expect(studioDocumentTitle('Q3 Board Deck')).toBe('Q3 Board Deck | Semurai Creative');
+    expect(studioDocumentTitle('  Oferta\n  jesień 2026 ')).toBe('Oferta jesień 2026 | Semurai Creative');
+  });
+  it('falls back to the product name without a project name', () => {
+    for (const title of [undefined, null, '', '   ']) expect(studioDocumentTitle(title)).toBe('Semurai Creative');
+  });
+});
 
 describe('Semurai Studio navigation boundary', () => {
   it('only resolves a UUID session path and never a browser-supplied arbitrary endpoint', () => {

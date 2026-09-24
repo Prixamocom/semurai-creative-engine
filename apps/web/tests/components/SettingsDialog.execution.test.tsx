@@ -2743,7 +2743,7 @@ describe('SettingsDialog execution settings Local CLI interactions', () => {
     vi.unstubAllGlobals();
   });
 
-  it('pins OpenDesign to the top of the installed CLI list', () => {
+  it('pins Semurai Creative to the top of the installed CLI list', () => {
     const claudeAgent: AgentInfo = {
       id: 'claude',
       name: 'Claude Code',
@@ -4865,12 +4865,12 @@ describe('SettingsDialog MCP server interactions', () => {
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith('/api/mcp/install-info');
     });
-    expect(screen.getByRole('heading', { name: /Connect OpenDesign to your coding agent/i })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: /Connect Semurai Creative to your coding agent/i })).toBeTruthy();
     expect(screen.queryByText(/Run this command in your terminal/i)).toBeNull();
     await waitFor(() => {
       expect(screen.getByText(/claude mcp add-json --scope user open-design/i)).toBeTruthy();
     });
-    expect(screen.getByText(/Keep OpenDesign running\. Restart your coding agent after setup\./i)).toBeTruthy();
+    expect(screen.getByText(/Keep Semurai Creative running\. Restart your coding agent after setup\./i)).toBeTruthy();
     expect(screen.getByText(/What your agent can do/i)).toBeTruthy();
   });
 
@@ -5922,7 +5922,7 @@ describe('SettingsDialog about interactions', () => {
     });
     const downloaded = updateStatus({
       artifact: {
-        name: 'Open Design Beta.dmg',
+        name: 'Semurai Creative Beta.dmg',
         platformKey: 'macAppleSilicon',
         type: 'dmg',
         url: 'https://fixture.test/Open Design Beta.dmg',

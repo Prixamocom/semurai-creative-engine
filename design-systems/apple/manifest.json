@@ -3,10 +3,10 @@
   "id": "apple",
   "name": "Apple",
   "category": "Media & Consumer",
-  "description": "Bundled OpenDesign package for Apple, derived from curated DESIGN.md, tokens.css, and components.html fixtures.",
+  "description": "Bundled Semurai Creative package for Apple, derived from curated DESIGN.md, tokens.css, and components.html fixtures.",
   "source": {
     "type": "bundled",
-    "origin": "OpenDesign curated bundled fixture"
+    "origin": "Semurai Creative curated bundled fixture"
   },
   "files": {
     "design": "DESIGN.md",

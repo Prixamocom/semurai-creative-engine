@@ -19,11 +19,11 @@ declare module '@deepseek-ai/cordis' {
 export function apply(ctx: Context): void {
   const program = new Command()
     .name('dsh --profile open-design')
-    .description('Run the OpenDesign JSONL profile adapter.')
+    .description('Run the Semurai Creative JSONL profile adapter.')
     .helpOption('-h, --help', 'show this help')
     .option('--models', 'print the Harness model catalog and exit')
     .option('--probe', 'print profile compatibility and exit')
-    .option('--stdio', 'serve one OpenDesign run over JSONL stdio')
+    .option('--stdio', 'serve one Semurai Creative run over JSONL stdio')
     .action((options: { models?: boolean; probe?: boolean; stdio?: boolean }) => {
       const modes = [options.models, options.probe, options.stdio].filter(Boolean);
       if (modes.length !== 1) {

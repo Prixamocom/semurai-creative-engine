@@ -1,14 +1,14 @@
 {
   "$schema": "./schema.ts",
-  "_doc": "Worked example — OpenDesign as the brand. Run `pnpm dlx tsx scripts/compose.ts inputs.example.json out/example.html` to regenerate the canonical example.html from this file. Every field maps to a typed entry in schema.ts.",
+  "_doc": "Worked example — Semurai Creative as the brand. Run `pnpm dlx tsx scripts/compose.ts inputs.example.json out/example.html` to regenerate the canonical example.html from this file. Every field maps to a typed entry in schema.ts.",
 
   "brand": {
-    "name": "OpenDesign",
+    "name": "Semurai Creative",
     "mark": "Ø",
     "meta": { "title": "Studio Nº 01", "subtitle": "Berlin / Open / Earth" },
     "filed_under": "Design · Intelligence",
     "tagline": "Designing intelligence with skills, taste, and your own agent.",
-    "description": "OpenDesign is the open-source alternative to Claude Design. 12 coding-agent CLIs · 31 composable skills · 72 brand-grade design systems. Local-first, web-deployable, BYOK at every layer.",
+    "description": "Semurai Creative is AI Design. 12 coding-agent CLIs · 31 composable skills · 72 brand-grade design systems. Local-first, web-deployable, BYOK at every layer.",
     "locale": "en",
     "edition": "Vol. 01 / Issue Nº 26",
     "version": "v0.3.0",
@@ -24,7 +24,7 @@
     "year_roman": "MMXXVI",
     "founded": "Est. MMXXVI",
     "rails": {
-      "right": "OpenDesign — Vol. 01 · Issue Nº 26 · Apache-2.0",
+      "right": "Semurai Creative — Vol. 01 · Issue Nº 26 · Apache-2.0",
       "left": "Skills · Systems · Agents · BYOK · Local-first"
     },
     "languages": ["EN", "DE", "中文", "日本語"],
@@ -40,11 +40,11 @@
   ],
 
   "rules": {
-    "about":        { "roman": "II.",   "meta": ["About / Manifesto",            "•", "OpenDesign / Volume 01"], "pagination": "002 / 008" },
+    "about":        { "roman": "II.",   "meta": ["About / Manifesto",            "•", "Semurai Creative / Volume 01"], "pagination": "002 / 008" },
     "capabilities": { "roman": "III.",  "meta": ["Capabilities · Skills · Systems", "•", "4 surfaces / 1 loop"],   "pagination": "003 / 008" },
     "labs":         { "roman": "IV.",   "meta": ["Labs / Skills Catalog",         "•", "05 of 31 ongoing"],         "pagination": "004 / 008" },
     "method":       { "roman": "V.",    "meta": ["Method / Loop",                 "•", "04 stages, iterative"],     "pagination": "005 / 008" },
-    "work":         { "roman": "VI.",   "meta": ["Selected Work · 2026 Catalog",  "•", "Edited by OpenDesign"],    "pagination": "006 / 008" },
+    "work":         { "roman": "VI.",   "meta": ["Selected Work · 2026 Catalog",  "•", "Edited by Semurai Creative"],    "pagination": "006 / 008" },
     "testimonial":  { "roman": "VII.",  "meta": ["Collaborators / Lineage",       "•", "Standing on shoulders"],    "pagination": "007 / 008" },
     "cta":          { "roman": "VIII.", "meta": ["Contact / Conversation",        "•", "Three commands to ship"],   "pagination": "008 / 008" }
   },
@@ -61,7 +61,7 @@
       { "text": "code", "em": true },
       { "text": ".", "dot": true }
     ],
-    "lead": "The open-source alternative to Anthropic&rsquo;s Claude Design. 12 coding agents — Claude, Codex, Cursor, Gemini and friends — drive 31 composable skills and 72 brand-grade design systems. Generate web pages, slide decks, mobile prototypes, images, even short videos — all running on your own laptop.",
+    "lead": "AI Design. 12 coding agents — Claude, Codex, Cursor, Gemini and friends — drive 31 composable skills and 72 brand-grade design systems. Generate web pages, slide decks, mobile prototypes, images, even short videos — all running on your own laptop.",
     "primary":   { "label": "Star us on GitHub",  "href": "https://github.com/nexu-io/open-design" },
     "secondary": { "label": "Download desktop",   "href": "https://github.com/nexu-io/open-design/releases" },
     "stats": [
@@ -80,7 +80,7 @@
       "tl": "FIG. 01 / OD-26",
       "tr": "Plate Nº 08",
       "bl": "SHA · a1b2c3d",
-      "br": "Composed in&nbsp;<span style='color:var(--coral);'>OpenDesign</span>"
+      "br": "Composed in&nbsp;<span style='color:var(--coral);'>Semurai Creative</span>"
     }
   },
 
@@ -104,7 +104,7 @@
     "side_note": "From model behavior<br/>to visual taste, we<br/>prototype the full<br/>stack of creative<br/>systems.",
     "caption": {
       "bold": "Studies in form · perception · machine imagination.",
-      "rest": "(OpenDesign, MMXXVI)"
+      "rest": "(Semurai Creative, MMXXVI)"
     }
   },
 
@@ -118,7 +118,7 @@
       { "text": ".", "dot": true }
     ],
     "lead": "We blend human taste with whichever agent you already trust to ship interfaces, decks, and editorial pages that feel intentional, expressive, and alive.",
-    "ribbon": "<b>OPENDESIGN</b> &nbsp;·&nbsp; CAPABILITIES MATRIX &nbsp;·&nbsp; OD/26",
+    "ribbon": "<b>SEMURAI CREATIVE</b> &nbsp;·&nbsp; CAPABILITIES MATRIX &nbsp;·&nbsp; OD/26",
     "cards": [
       {
         "num": "01",
@@ -243,7 +243,7 @@
     "label": "Collaborators",
     "ix": "· Nº 06",
     "quote": [
-      { "text": "OpenDesign helped us turn vague " },
+      { "text": "Semurai Creative helped us turn vague " },
       { "text": "AI ideas", "em": true },
       { "text": " into a visual system that felt " },
       { "text": "sharp, believable,", "em": true },
@@ -276,7 +276,7 @@
     ],
     "lead": "Star us on GitHub, drop into the issues, or run <code class='code-inline'>pnpm tools-dev</code> tonight. Three commands and the loop is yours.",
     "primary": { "label": "Star on GitHub", "href": "https://github.com/nexu-io/open-design" },
-    "ribbon": "OPENDESIGN &nbsp;·&nbsp; FIN."
+    "ribbon": "SEMURAI CREATIVE &nbsp;·&nbsp; FIN."
   },
 
   "wire": {
@@ -318,7 +318,7 @@
   },
 
   "footer": {
-    "brand_description": "The open-source alternative to Claude Design. Built on the shoulders of <a class='inline-link' href='https://github.com/alchaincyf/huashu-design' target='_blank' rel='noreferrer noopener'>huashu-design</a>, <a class='inline-link' href='https://github.com/op7418/guizang-ppt-skill' target='_blank' rel='noreferrer noopener'>guizang-ppt</a>, <a class='inline-link' href='https://github.com/multica-ai/multica' target='_blank' rel='noreferrer noopener'>multica-ai</a>, and <a class='inline-link' href='https://github.com/OpenCoworkAI/open-codesign' target='_blank' rel='noreferrer noopener'>open-codesign</a>.",
+    "brand_description": "AI Design. Built on the shoulders of <a class='inline-link' href='https://github.com/alchaincyf/huashu-design' target='_blank' rel='noreferrer noopener'>huashu-design</a>, <a class='inline-link' href='https://github.com/op7418/guizang-ppt-skill' target='_blank' rel='noreferrer noopener'>guizang-ppt</a>, <a class='inline-link' href='https://github.com/multica-ai/multica' target='_blank' rel='noreferrer noopener'>multica-ai</a>, and <a class='inline-link' href='https://github.com/OpenCoworkAI/open-codesign' target='_blank' rel='noreferrer noopener'>open-codesign</a>.",
     "brand_cta": {
       "label": "Download desktop",
       "href": "https://github.com/nexu-io/open-design/releases",
