@@ -2,6 +2,13 @@
    the same app tokens (styles/tokens.css) as the editor; the wordmark red is
    the only brand color. The dark theme mirrors the editor's dark tokens
    (StudioEditor.module.css) for the few app tokens this screen reads. */
+/* Creative-service serves only the Studio page, /_next/static and exports, so
+   the app's absolute /fonts/ URLs 404 there. These relative URLs make the
+   bundler emit the same files under /_next/static/media for the Studio. */
+@font-face { font-family: "Semurai Studio Sans"; src: url("../../public/fonts/AlbertSans-VariableFont_wght.ttf") format("truetype"); font-weight: 100 900; font-style: normal; font-display: swap; }
+@font-face { font-family: "Semurai Studio Sans"; src: url("../../public/fonts/AlbertSans-Italic-VariableFont_wght.ttf") format("truetype"); font-weight: 100 900; font-style: italic; font-display: swap; }
+@font-face { font-family: "Semurai Studio Mono"; src: url("../../public/fonts/JiduMonoPro-Regular.otf") format("opentype"); font-weight: 400 500; font-style: normal; font-display: swap; }
+body:has([data-studio-theme]) { --sans: "Semurai Studio Sans", "Albert Sans", system-ui, sans-serif; --mono: "Semurai Studio Mono", "JiduMono Pro", ui-monospace, monospace; }
 .semurai-studio-shell { min-height: 100vh; background: color-mix(in srgb, var(--text-strong) 5%, var(--bg)); color: var(--text-strong); font-family: var(--sans); font-size: 13px; line-height: 20px; }
 .semurai-studio-header { display: flex; align-items: center; gap: 16px; min-height: 44px; padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--bg); }
 .semurai-studio-wordmark { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
