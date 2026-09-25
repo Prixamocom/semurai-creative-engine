@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { Button } from '@open-design/components';
 import { ArrowLeft, ArrowUp, Check, ChevronDown, ChevronUp, Code2, Copy, Download, Eye, History, Layers, Maximize2, MessageSquare, Monitor, Smartphone, Tablet, MousePointer2, Scan, PanelLeftClose, PanelLeftOpen, Pencil, RotateCcw, RotateCw, Sparkles, Trash2, X } from 'lucide-react';
 import { DeckThumbnailRail } from '../components/DeckThumbnailRail';
-import { ManualEditPanel, emptyManualEditDraft, type ManualEditDraft } from '../components/ManualEditPanel';
 import { applyManualEditPatch } from '../edit-mode/source-patches';
 import type { ManualEditPatch, ManualEditTarget } from '../edit-mode/types';
 import { safeStudioReturn, studioSessionPath, type StudioContext } from './studio-context';
@@ -21,7 +20,7 @@ import { StudioImageMenu } from './StudioImageMenu';
 import { placeStudioImage } from './studio-images';
 import styles from './StudioEditor.module.css';
 import { StudioReview } from './StudioReview';
-import { StudioInspector } from './StudioInspector';
+import { StudioEditPanel, type StudioInspectorMode } from './StudioEditPanel';
 import { StudioCommentThread } from './StudioCommentThread';
 import { readReviewTarget, reviewBrief, reviewCopy, type ReviewTarget, type StudioComment } from './studio-review';
 
@@ -31,14 +30,14 @@ type Job = StudioChatJob;
 interface Version { id: string; version: number; kind: string; created_at: string }
 interface ProjectExport { id: string; format: 'html' | 'pptx'; version: number; title: string; created_at: string; mime_type: string; size: number; sha256: string }
 
-export function StudioEditor({ context, expired = false, onClose }: { context: StudioContext; expired?: boolean; onClose: () => void }) {
+export function StudioEditor({ context, expired = false, onClose, sessionPath }: { context: StudioContext; expired?: boolean; onClose: () => void; sessionPath?: string }) {
   const c = studioEditorCopy[context.project.uiLocale];
   const r = reviewCopy[context.project.uiLocale];
   const [chatWidth, setChatWidth] = useState(() => { try { return Math.max(280, Math.min(640, Number(localStorage.getItem('semurai-studio-chat-width')) || 390)); } catch { return 390; } });
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [resizing, setResizing] = useState(false);
   const resizeStart = useRef({ x: 0, width: 390 });
-  const [inspectorMode, setInspectorMode] = useState<'simple' | 'pro' | 'code'>(() => { try { const value = localStorage.getItem('semurai-studio-inspector'); return value === 'pro' || value === 'code' ? value : 'simple'; } catch { return 'simple'; } });
+  const [inspectorMode, setInspectorMode] = useState<StudioInspectorMode>(() => { try { const value = localStorage.getItem('semurai-studio-inspector'); return value === 'pro' || value === 'code' ? value : 'simple'; } catch { return 'simple'; } });
   const [commentPoint, setCommentPoint] = useState<{ x: number; y: number } | null>(null);
   const body = useRef<HTMLDivElement>(null);
   const [review, setReview] = useState<'element' | 'area' | null>(null);
@@ -52,7 +51,7 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
   const [areaBox, setAreaBox] = useState<ReviewTarget['position']>();
   const areaStart = useRef<{ x: number; y: number } | null>(null);
   const promptInput = useRef<HTMLTextAreaElement>(null);
-  const path = studioSessionPath(window.location.pathname)!;
+  const path = sessionPath ?? studioSessionPath(window.location.pathname)!;
   const deck = context.project.artifactType === 'presentation';
   const video = context.project.artifactType === 'video';
   const [videoRuntime, setVideoRuntime] = useState('');
@@ -97,13 +96,14 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
   const [slide, setSlide] = useState(0);
   const [showHistory, setShowHistory] = useState(false);
   const [showExports, setShowExports] = useState(false);
-  const [showLayers, setShowLayers] = useState(false);
+  const [layersOpen, setLayersOpen] = useState(() => { try { return localStorage.getItem('semurai-studio-layers') !== 'closed'; } catch { return true; } });
   const [showChat, setShowChat] = useState(false);
   const [sourceTab, setSourceTab] = useState<'html' | 'css'>('html');
   const [sheet, setSheet] = useState(0);
   const [targets, setTargets] = useState<ManualEditTarget[]>([]);
   const [selected, setSelected] = useState<ManualEditTarget | null>(null);
-  const [draft, setDraft] = useState<ManualEditDraft>(emptyManualEditDraft());
+  const selectedRef = useRef(selected); selectedRef.current = selected;
+  const reselect = useRef(false);
   const [undo, setUndo] = useState<StudioDocument[]>([]);
   const [redo, setRedo] = useState<StudioDocument[]>([]);
   const requestKey = useRef<string | null>(null);
@@ -156,6 +156,7 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
     frame.current?.contentWindow?.postMessage({ type: 'semurai:comment-markers', ...markersState.current }, '*');
   }
   useEffect(() => { try { localStorage.setItem('semurai-studio-inspector', inspectorMode); } catch {} }, [inspectorMode]);
+  useEffect(() => { try { localStorage.setItem('semurai-studio-layers', layersOpen ? 'open' : 'closed'); } catch { /* Storage can be disabled. */ } }, [layersOpen]);
   useEffect(() => { if (review || mode === 'edit') { setChatCollapsed(false); setShowChat(true); } }, [review, mode]);
   const focusedComment = comments.find(item => item.id === activeCommentId && (showResolved || !item.resolved));
   useEffect(() => { syncMarkers(); }, [zoom, device, chatWidth, chatCollapsed]);
@@ -249,17 +250,22 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
     if (previous) setUndo(items => [...items.slice(-49), previous]);
     latest.current = next; setDocument(next); setRedo([]); setError('');
   }
-  function patch(value: ManualEditPatch) {
-    if (!latest.current) return;
-    const result = applyManualEditPatch(studioFileSource(latest.current, activeFileRef.current), value);
-    if (!result.ok) { setError(c.error); return; }
-    if (result.source !== studioFileSource(latest.current, activeFileRef.current)) change({ ...latest.current, html: result.source });
+  function patch(value: ManualEditPatch): boolean {
+    if (!latest.current) return false;
+    const source = studioFileSource(latest.current, activeFileRef.current);
+    const result = applyManualEditPatch(source, value);
+    if (!result.ok) { setError(c.error); return false; }
+    // The patcher re-serializes the whole file, so an edit that changes nothing
+    // still returns different text. Compare against the same serialization of
+    // the current file (an empty body style patch) so a no-op commit never
+    // enters the undo history or marks the project unsaved.
+    if (result.source === source || result.source === applyManualEditPatch(source, { kind: 'set-style', id: '__body__', styles: {} }).source) return true;
+    change({ ...latest.current, html: result.source });
+    return true;
   }
-  function pick(target: ManualEditTarget) {
-    setSelected(target); setDraft({ ...emptyManualEditDraft(latest.current ? studioFileSource(latest.current, activeFileRef.current) : undefined), ...target.fields,
-      text: target.fields.text ?? target.text, href: target.fields.href ?? '', src: target.fields.src ?? '', alt: target.fields.alt ?? '',
-      styles: target.styles, outerHtml: target.outerHtml, attributesText: JSON.stringify(target.attributes, null, 2) });
-    frame.current?.contentWindow?.postMessage({ type: 'od-edit-selected-target', id: target.id }, '*');
+  function pick(target: ManualEditTarget | null) {
+    setSelected(target);
+    frame.current?.contentWindow?.postMessage({ type: 'od-edit-selected-target', id: target?.id ?? null }, '*');
   }
   useEffect(() => {
     const receive = (event: MessageEvent) => {
@@ -283,7 +289,15 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
         if (target) { setReviewTarget(previous => data.type === 'od:comment-active-target-update' && previous ? { ...previous, position: target.position } : target); if (data.type === 'od:comment-target') frame.current?.contentWindow?.postMessage({ type: 'od:comment-active-target', elementId: target.elementId, selector: target.selector }, '*'); }
       }
       if (data.type === 'od:comment-targets' && Array.isArray(data.targets)) reviewTargets.current = data.targets.slice(0, 1000).map((value: unknown) => readReviewTarget(value, activeFileRef.current, reviewState.current.version)).filter((value: ReviewTarget | null): value is ReviewTarget => !!value);
-      if (data.type === 'od-edit-targets'  && Array.isArray(data.targets)) setTargets(data.targets.slice(0, 1000));
+      if (data.type === 'od-edit-targets' && Array.isArray(data.targets)) {
+        const list = data.targets.slice(0, 1000) as ManualEditTarget[];
+        setTargets(list);
+        // Each commit reloads the preview; keep the selection and show the
+        // element's fresh styles, or drop it when the element is gone.
+        const current = selectedRef.current; const fresh = current ? list.find(target => target.id === current.id) ?? null : null;
+        if (current && (!fresh || reselect.current)) pick(fresh); else if (fresh) setSelected(fresh);
+        reselect.current = false;
+      }
       if (data.type === 'od-edit-select' && data.target && typeof data.target.id === 'string') pick(data.target);
       if (data.type === 'od-edit-background') setSelected(null);
       if (data.type === 'od-edit-text-commit' && typeof data.id === 'string' && typeof data.value === 'string') patch({ kind: 'set-text', id: data.id, value: data.value });
@@ -353,20 +367,12 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
     const previous = latest.current;
     if (direction === 'undo') { setUndo(items.slice(0, -1)); setRedo(values => [...values, previous]); }
     else { setRedo(items.slice(0, -1)); setUndo(values => [...values, previous]); }
-    latest.current = next; setDocument(next); setSelected(null);
+    latest.current = next; setDocument(next);
   }
   function slideAction(operation: SlideOperation) {
     if (!latest.current) return;
     const result = changeSlide(studioFileSource(latest.current, activeFileRef.current), latest.current.notes, slide, operation);
     if (result) { change({ ...latest.current, html: result.html, notes: result.notes }); setSlide(result.active); setSelected(null); }
-  }
-  async function saveDraft() {
-    if (!selected) { await action(async () => { await saveCurrent(); }); return; }
-    if (selected.kind === 'text') patch({ kind: 'set-text', id: selected.id, value: draft.text });
-    if (selected.kind === 'link') patch({ kind: 'set-link', id: selected.id, text: draft.text, href: draft.href });
-    if (selected.kind === 'image') patch({ kind: 'set-image', id: selected.id, src: draft.src, alt: draft.alt });
-    patch({ kind: 'set-style', id: selected.id, styles: draft.styles });
-    await action(async () => { await saveCurrent(); });
   }
   async function exportFile(format: 'html' | 'pptx') {
     if (format === 'html' && expired && latest.current) {
@@ -411,20 +417,13 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
       downloadStudioFile(bytes, file.mime_type, file.title + '-v' + file.version, '.' + file.format);
     });
   }
-  async function pickImage(file: File): Promise<string | null> {
-    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 6_000_000) { setError(c.error); return null; }
-    try {
-      const data = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsDataURL(file); });
-      return ((await api('media/upload', 'POST', { image_data: data, title: file.name })).data as StudioImage).dataUrl;
-    } catch { setError(c.error); return null; }
-  }
 
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       const input = event.target instanceof HTMLElement && !!event.target.closest('input,textarea,select,[contenteditable="true"]');
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); if (!busy && !expired) void action(async () => { await saveCurrent(); }); }
       if (!input && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); if (!busy) travel(event.shiftKey ? 'redo' : 'undo'); }
-      if (event.key === 'Escape' && !input) { setReview(null); setReviewTarget(null); setShowLayers(false); setShowHistory(false); setShowExports(false); setMode('preview'); }
+      if (event.key === 'Escape' && !input) { setReview(null); setReviewTarget(null); setShowHistory(false); setShowExports(false); setMode('preview'); }
     };
     window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key);
   }, [busy, expired, undo, redo]);
@@ -450,8 +449,8 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
       </div>
       <form className={styles.composer} onSubmit={event => { event.preventDefault(); void send(); }}><StudioMedia images={images} onChange={value => { setImages(value); requestKey.current = null; }} useLibrary={useLibrary} onLibrary={value => { setUseLibrary(value); requestKey.current = null; }} api={api} locale={context.project.uiLocale} disabled={busy || !!active} onBusy={setMediaBusy} compact /><textarea ref={promptInput} aria-label={c.ask} placeholder={c.ask} value={prompt} onChange={event => { setPrompt(event.target.value); requestKey.current = null; }} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }} />{aiTarget && <div className={styles.aiTarget}><MousePointer2 size={14} /><span title={aiTarget.text}>{aiTarget.file} · {aiTarget.label}</span><Button title={r.remove} onClick={() => { setAiTarget(null); requestKey.current = null; }}><X size={13} /></Button></div>}<div className={styles.composerFooter}><span>{c.chat}</span><Button type="submit" title={c.send} disabled={busy || mediaBusy || !!active || !prompt.trim()}><ArrowUp size={18} /></Button></div></form><p className={styles.chatHint}>{c.allChanges}</p></>}
         {review && <StudioReview comments={comments} onCommentsChange={setComments} resolved={showResolved} onResolvedChange={setShowResolved} activeCommentId={activeCommentId} locale={context.project.uiLocale} file={activeFile} version={saved?.version ?? 0} target={reviewTarget} disabled={busy || expired} api={api} onAsk={askSelection} onSelect={selectReview} onClose={() => { setReview(null); setReviewTarget(null); }} />}
-        {showLayers && mode === 'edit' && <aside className={styles.layers}>{targets.map(target => <button key={target.id} className={selected?.id === target.id ? styles.active : ''} onClick={() => pick(target)}><span>{target.tagName}</span>{target.label || target.text.slice(0, 45)}</button>)}</aside>}
-        {mode === 'edit' && <div className={styles.inspector}><div className={styles.inspectorModes} role="group" aria-label="Inspector modes">{(['simple', 'pro', 'code'] as const).map(value => <button key={value} aria-pressed={inspectorMode === value} onClick={() => setInspectorMode(value)}>{value === 'simple' ? 'Simple' : value === 'pro' ? 'Pro' : 'Code'}</button>)}</div>{inspectorMode === 'pro' ? <ManualEditPanel targets={targets} selectedTarget={selected} draft={draft} history={[]} error={null} canUndo={!!undo.length} canRedo={!!redo.length} busy={busy} onSelectTarget={pick} onDraftChange={setDraft} onStyleChange={(id, values) => patch({ kind: 'set-style', id, styles: values })} onApplyPatch={patch} onPickImage={pickImage} onError={setError} onClearSelection={() => setSelected(null)} onCancelDraft={() => selected && pick(selected)} onSaveDraft={() => { void saveDraft(); }} onResetDraft={() => selected && pick(selected)} onUndo={() => travel('undo')} onRedo={() => travel('redo')} onExit={() => setMode('preview')} /> : <StudioInspector mode={inspectorMode} selected={selected} draft={draft} onDraft={setDraft} patch={patch} locale={context.project.uiLocale} disabled={busy || expired} />}</div>}
+        {mode === 'edit' && <StudioEditPanel locale={context.project.uiLocale} source={visibleHtml} targets={targets} selected={selected} mode={inspectorMode} layersOpen={layersOpen} disabled={busy || expired}
+          onMode={setInspectorMode} onLayersOpen={setLayersOpen} onSelect={pick} onPatch={patch} onPickImage={() => { if (document && selected) setImagePicker({ source: visibleHtml, target: selected, initialSource: 'library' }); }} />}
     </aside>
     <div className={styles.resizeHandle} role="separator" aria-orientation="vertical" aria-label={r.resize} aria-controls="studio-chat" aria-valuemin={280} aria-valuemax={640} aria-valuenow={Math.round(chatWidth)} tabIndex={0}
       onDoubleClick={() => setChatWidth(390)} onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); setChatWidth(value => Math.max(280, Math.min(640, value + (event.key === 'ArrowLeft' ? -20 : 20)))); } }}
@@ -460,7 +459,7 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
       onPointerUp={event => { event.currentTarget.releasePointerCapture(event.pointerId); setResizing(false); }} onLostPointerCapture={() => setResizing(false)} />
     <section className={styles.workspace}>
       <header className={styles.header}>{chatCollapsed && <Button title={c.chat} onClick={() => setChatCollapsed(false)}><PanelLeftOpen size={16} /></Button>}<Button className={styles.mobileChatToggle} title={c.chat} onClick={() => setShowChat(true)}><MessageSquare size={16} /></Button><details className={styles.fileMenu}><summary><Code2 size={15} /><span>{activeFile}<small>{1 + (document?.files?.length ?? 0)} {c.files}</small></span><ChevronDown size={13} /></summary><nav aria-label={c.files}>{['index.html', ...(document?.files ?? []).map(file => file.path)].map(file => <button key={file} aria-current={activeFile === file ? 'page' : undefined} onClick={event => { selectFile(file); event.currentTarget.closest('details')?.removeAttribute('open'); }}><Code2 size={16} /><span>{file}</span>{file === activeFile && <Check size={14} />}</button>)}</nav></details><span className={styles.saveState}>{dirty ? c.unsaved : <><Check size={13} />{c.saved}</>}</span><button title={c.history} onClick={() => { setShowHistory(!showHistory); setShowExports(false); setReview(null); }}><History size={17} /></button><Button disabled={!dirty || busy || expired || !!active} onClick={() => { void action(async () => { await saveCurrent(); }); }}>{video ? v.save : c.save}</Button><details className={styles.exportMenu}><summary><Download size={15} />{c.export}</summary><div>{video && <Button disabled={!document || busy || expired || !!active} onClick={() => { void downloadVideo(); }}>MP4</Button>}<Button disabled={!document || busy} onClick={() => { void exportFile('html'); }}>{c.downloadHtml}</Button>{deck && <Button disabled={!document || busy} onClick={() => { void exportFile('pptx'); }}>{c.downloadPptx}</Button>}<Button disabled={!document || busy} onClick={() => { if (document) void action(async () => { await exportStudioDocument(visibleHtml, deck, 'print', path, context.project.title); }); }}>{c.print}</Button><Button onClick={() => { setShowExports(!showExports); setShowHistory(false); setReview(null); }}>{c.exportHistory}</Button></div></details></header>
-      <div className={styles.toolbar}><div className={styles.segment}><button className={mode !== 'source' ? styles.active : ''} onClick={() => setMode('preview')}><Eye size={15} />{c.preview}</button><button className={mode === 'source' ? styles.active : ''} onClick={() => setMode('source')}><Code2 size={15} />{c.source}</button></div><div className={styles.devices} role="group" aria-label={c.preview}>{[[0, c.desktop, Monitor], [768, c.tablet, Tablet], [390, c.mobile, Smartphone]].map(([width, label, DeviceIcon]) => { const Icon = DeviceIcon as typeof Monitor; return <Button key={String(width)} title={String(label)} aria-label={String(label)} aria-pressed={device === width} onClick={() => setDevice(Number(width))}><Icon size={16} /><span>{String(label)}</span></Button>; })}</div><div className={styles.spacer} />{!deck && <StudioImageMenu locale={context.project.uiLocale} disabled={!document || busy || expired} onSelect={initialSource => { if (document) setImagePicker({ source: visibleHtml, target: mode === 'edit' ? selected : null, initialSource }); }} />}<button disabled={!undo.length} title={c.undo} onClick={() => travel('undo')}><RotateCcw size={16} /></button><button disabled={!redo.length} title={c.redo} onClick={() => travel('redo')}><RotateCw size={16} /></button><Button aria-pressed={review === 'element'} title={r.select} disabled={!document || mode === 'source'} onClick={() => { setMode('preview'); setReview(review === 'element' ? null : 'element'); setShowHistory(false); setShowExports(false); }}><MousePointer2 size={16} /></Button><Button aria-pressed={review === 'area'} title={r.area} disabled={!document || mode === 'source'} onClick={() => { setMode('preview'); setReview(review === 'area' ? null : 'area'); setShowHistory(false); setShowExports(false); }}><Scan size={16} /></Button><Button aria-pressed={!!review} title={r.comments} aria-label={`${r.comments} (${fileComments.length})`} disabled={!document} onClick={() => { setMode('preview'); setReview(review ? null : 'element'); setShowHistory(false); setShowExports(false); }}><MessageSquare size={16} /><span className={styles.commentCount} aria-hidden="true">{fileComments.length}</span></Button><button className={showLayers ? styles.active : ''} title={c.layers} onClick={() => { setShowLayers(!showLayers); setMode('edit'); }}><Layers size={16} /></button><button className={mode === 'edit' ? styles.active : ''} onClick={() => setMode(mode === 'edit' ? 'preview' : 'edit')}><Pencil size={15} />{c.edit}</button><button title={deck ? c.present : c.fullscreen} disabled={!document || (deck && count === 0)} onClick={() => { if (deck && document) setPresentation({ document, slide }); else void viewport.current?.requestFullscreen(); }}><Maximize2 size={16} /></button><select value={zoom} aria-label={c.zoom} onChange={event => setZoom(Number(event.target.value))}>{[50, 75, 100, 125, 150].map(value => <option key={value} value={value}>{value}%</option>)}</select></div>
+      <div className={styles.toolbar}><div className={styles.segment}><button className={mode !== 'source' ? styles.active : ''} onClick={() => setMode('preview')}><Eye size={15} />{c.preview}</button><button className={mode === 'source' ? styles.active : ''} onClick={() => setMode('source')}><Code2 size={15} />{c.source}</button></div><div className={styles.devices} role="group" aria-label={c.preview}>{[[0, c.desktop, Monitor], [768, c.tablet, Tablet], [390, c.mobile, Smartphone]].map(([width, label, DeviceIcon]) => { const Icon = DeviceIcon as typeof Monitor; return <Button key={String(width)} title={String(label)} aria-label={String(label)} aria-pressed={device === width} onClick={() => setDevice(Number(width))}><Icon size={16} /><span>{String(label)}</span></Button>; })}</div><div className={styles.spacer} />{!deck && <StudioImageMenu locale={context.project.uiLocale} disabled={!document || busy || expired} onSelect={initialSource => { if (document) setImagePicker({ source: visibleHtml, target: mode === 'edit' ? selected : null, initialSource }); }} />}<button disabled={!undo.length} title={c.undo} onClick={() => travel('undo')}><RotateCcw size={16} /></button><button disabled={!redo.length} title={c.redo} onClick={() => travel('redo')}><RotateCw size={16} /></button><Button aria-pressed={review === 'element'} title={r.select} disabled={!document || mode === 'source'} onClick={() => { setMode('preview'); setReview(review === 'element' ? null : 'element'); setShowHistory(false); setShowExports(false); }}><MousePointer2 size={16} /></Button><Button aria-pressed={review === 'area'} title={r.area} disabled={!document || mode === 'source'} onClick={() => { setMode('preview'); setReview(review === 'area' ? null : 'area'); setShowHistory(false); setShowExports(false); }}><Scan size={16} /></Button><Button aria-pressed={!!review} title={r.comments} aria-label={`${r.comments} (${fileComments.length})`} disabled={!document} onClick={() => { setMode('preview'); setReview(review ? null : 'element'); setShowHistory(false); setShowExports(false); }}><MessageSquare size={16} /><span className={styles.commentCount} aria-hidden="true">{fileComments.length}</span></Button><button className={mode === 'edit' && layersOpen ? styles.active : ''} title={c.layers} aria-pressed={mode === 'edit' && layersOpen} onClick={() => { if (mode === 'edit') setLayersOpen(!layersOpen); else { setLayersOpen(true); setMode('edit'); } }}><Layers size={16} /></button><button className={mode === 'edit' ? styles.active : ''} onClick={() => setMode(mode === 'edit' ? 'preview' : 'edit')}><Pencil size={15} />{c.edit}</button><button title={deck ? c.present : c.fullscreen} disabled={!document || (deck && count === 0)} onClick={() => { if (deck && document) setPresentation({ document, slide }); else void viewport.current?.requestFullscreen(); }}><Maximize2 size={16} /></button><select value={zoom} aria-label={c.zoom} onChange={event => setZoom(Number(event.target.value))}>{[50, 75, 100, 125, 150].map(value => <option key={value} value={value}>{value}%</option>)}</select></div>
 
       {video && document && mode !== 'source' && <div className={styles.videoControls}>
         <Button disabled={!videoRuntime || mode === 'edit'} onClick={() => { videoTimeRef.current = videoTime; frame.current?.contentWindow?.postMessage({ type: 'semurai:video', play: !videoPlaying }, '*'); }}>{videoPlaying ? v.pause : v.play}</Button>
@@ -483,7 +482,7 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
               }
               setAreaBox(undefined);
             }} onPointerCancel={() => { areaStart.current = null; setAreaBox(undefined); }}>{areaBox && <div className={styles.selectionBox} style={{ left: areaBox.x, top: areaBox.y, width: areaBox.width, height: areaBox.height }} />}</div>}
-            <iframe ref={frame} title={c.preview} sandbox="allow-scripts allow-modals" srcDoc={srcdoc} onLoad={() => { frame.current?.contentWindow?.postMessage({ type: 'od-edit-mode', enabled: mode === 'edit' }, '*'); if (video) seekVideo(videoTimeRef.current); setFrameReady(value => value + 1); }} /></div>}
+            <iframe ref={frame} title={c.preview} sandbox="allow-scripts allow-modals" srcDoc={srcdoc} onLoad={() => { reselect.current = true; frame.current?.contentWindow?.postMessage({ type: 'od-edit-mode', enabled: mode === 'edit' }, '*'); if (video) seekVideo(videoTimeRef.current); setFrameReady(value => value + 1); }} /></div>}
           {deck && document && mode !== 'source' && <label className={styles.notes}><span>{c.notes} · {slide + 1}/{count}</span><textarea value={document.notes?.[slide] ?? ''} placeholder={c.notes} onChange={event => { const notes = Array.from({ length: count }, (_, index) => document.notes?.[index] ?? ''); notes[slide] = event.target.value; change({ ...document, notes }); }} /></label>}
         </div>
         {review && focusedComment && commentPoint && <section className={styles.commentPopover} data-testid="studio-comment-popover" aria-label={r.comments} style={{ left: commentPoint.x, top: commentPoint.y, maxHeight: `min(520px, 55vh, calc(100% - ${commentPoint.y + 8}px))` }}>

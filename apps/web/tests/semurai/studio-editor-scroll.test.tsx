@@ -41,9 +41,10 @@ describe('Studio preview scroll during manual edits', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0]!);
     fromPreview(frame, { type: 'od-edit-select', target: hero });
-    fireEvent.change(await screen.findByLabelText('Text size'), { target: { value: '48px' } });
+    const size = await screen.findByRole('textbox', { name: 'Font size' });
+    fireEvent.change(size, { target: { value: '48px' } });
     const before = frame.srcdoc;
-    fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+    fireEvent.keyDown(size, { key: 'Enter' });
     await waitFor(() => expect(frame.srcdoc).not.toBe(before));
     expect(frame.srcdoc).toContain('font-size: 48px');
 
