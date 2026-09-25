@@ -2687,8 +2687,10 @@ function meaningfulDomFallbackTarget(el) {
     if (data.type === 'od:preview-scroll-restore') {
       var frame = document.scrollingElement || document.documentElement;
       var el = previewScrollElement();
-      if (frame) frame.scrollTo(Number(data.frameLeft || 0), Number(data.frameTop || 0));
-      if (el) el.scrollTo(Number(data.canvasLeft || 0), Number(data.canvasTop || 0));
+      // Restores must land at once even when the artifact sets
+      // scroll-behavior: smooth, or every reload visibly glides from the top.
+      if (frame) frame.scrollTo({ left: Number(data.frameLeft || 0), top: Number(data.frameTop || 0), behavior: 'instant' });
+      if (el) el.scrollTo({ left: Number(data.canvasLeft || 0), top: Number(data.canvasTop || 0), behavior: 'instant' });
       setTimeout(postPreviewScroll, 0);
       return;
     }
