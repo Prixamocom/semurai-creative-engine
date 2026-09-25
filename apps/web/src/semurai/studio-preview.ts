@@ -72,6 +72,24 @@ export function studioPreviewSource(source: string, slide = 0, edit = false, dec
   return prepared.slice(0, headEnd) + '<meta http-equiv="Content-Security-Policy" content="' + STUDIO_ARTIFACT_CSP + '">' + prepared.slice(headEnd);
 }
 
+export interface StudioPreviewScroll { frameLeft: number; frameTop: number; canvasLeft: number; canvasTop: number }
+export const emptyStudioPreviewScroll: StudioPreviewScroll = { frameLeft: 0, frameTop: 0, canvasLeft: 0, canvasTop: 0 };
+/** How long after a restore request the reloaded preview may still report a clamped offset. */
+export const STUDIO_PREVIEW_SCROLL_SETTLE_MS = 1200;
+
+/**
+ * Every edit rebuilds the preview srcdoc, so the iframe reloads at the top and
+ * its selection bridge asks the host (`od:preview-scroll-request`) where to go.
+ * The kept offset must stay the user's last scroll position: while a reloaded
+ * document is still settling, a report below the kept offset on any axis is a
+ * restore clamped by a shorter layout (or the initial zero), not the user.
+ */
+export function nextStudioPreviewScroll(kept: StudioPreviewScroll, report: Partial<Record<keyof StudioPreviewScroll, unknown>>, settling: boolean): StudioPreviewScroll {
+  const read = (value: unknown) => { const number = Number(value || 0); return Number.isFinite(number) ? Math.max(0, number) : 0; };
+  const next = { frameLeft: read(report.frameLeft), frameTop: read(report.frameTop), canvasLeft: read(report.canvasLeft), canvasTop: read(report.canvasTop) };
+  return settling && (Object.keys(next) as (keyof StudioPreviewScroll)[]).some(axis => next[axis] < kept[axis]) ? kept : next;
+}
+
 export function studioSlideCount(source: string): number {
   return new DOMParser().parseFromString(source, 'text/html').querySelectorAll('.deck-stage .slide').length;
 }

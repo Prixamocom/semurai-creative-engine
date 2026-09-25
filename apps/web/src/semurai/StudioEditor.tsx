@@ -8,7 +8,7 @@ import { ManualEditPanel, emptyManualEditDraft, type ManualEditDraft } from '../
 import { applyManualEditPatch } from '../edit-mode/source-patches';
 import type { ManualEditPatch, ManualEditTarget } from '../edit-mode/types';
 import { safeStudioReturn, studioSessionPath, type StudioContext } from './studio-context';
-import { studioPreviewSource, studioSlideCount } from './studio-preview';
+import { emptyStudioPreviewScroll, nextStudioPreviewScroll, STUDIO_PREVIEW_SCROLL_SETTLE_MS, studioPreviewSource, studioSlideCount } from './studio-preview';
 import { studioEditorCopy } from './studio-editor-copy';
 import { changeSlide, replaceStyleBlock, styleBlocks, studioFileSource, replaceStudioFile, type SlideOperation } from './studio-source';
 import { downloadStudioFile, exportStudioDocument } from './studio-export';
@@ -107,6 +107,8 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
   const [undo, setUndo] = useState<StudioDocument[]>([]);
   const [redo, setRedo] = useState<StudioDocument[]>([]);
   const requestKey = useRef<string | null>(null);
+  const previewScroll = useRef(emptyStudioPreviewScroll);
+  const previewScrollRequestAt = useRef(0);
   const active = jobs.find(job => !terminal.has(job.status));
   const dirty = Boolean(document && JSON.stringify(document) !== JSON.stringify(saved?.document));
   const visibleHtml = document ? studioFileSource(document, activeFile) : '';
@@ -131,7 +133,7 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
     setChatCollapsed(false); setShowChat(true); requestAnimationFrame(() => promptInput.current?.focus());
   }
   function selectFile(file: string) {
-    activeFileRef.current = file; setActiveFile(file); setSelected(null); setTargets([]); setSheet(0); setSlide(0);
+    activeFileRef.current = file; previewScroll.current = emptyStudioPreviewScroll; setActiveFile(file); setSelected(null); setTargets([]); setSheet(0); setSlide(0);
   }
   const api = useCallback(async (endpoint: string, method = 'GET', body?: unknown) => {
     const response = await fetch(path + 'project/' + endpoint, { method, credentials: 'same-origin', cache: 'no-store',
@@ -287,6 +289,10 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
       if (data.type === 'od-edit-text-commit' && typeof data.id === 'string' && typeof data.value === 'string') patch({ kind: 'set-text', id: data.id, value: data.value });
       if (data.type === 'od-edit-drag-commit' && typeof data.id === 'string' && typeof data.transform === 'string') patch({ kind: 'set-style', id: data.id, styles: { transform: data.transform, ...(data.display ? { display: data.display } : {}) } });
       if (data.type === 'od:slide-state' && Number.isInteger(data.active) && data.active >= 0 && data.active < count) setSlide(data.active);
+      // Edits rebuild srcdoc, so the preview reloads at the top; keep the last
+      // scroll position and hand it back when the reloaded document asks.
+      if (data.type === 'od:preview-scroll' && !data.requestId) previewScroll.current = nextStudioPreviewScroll(previewScroll.current, data, Date.now() - previewScrollRequestAt.current < STUDIO_PREVIEW_SCROLL_SETTLE_MS);
+      if (data.type === 'od:preview-scroll-request') { previewScrollRequestAt.current = Date.now(); frame.current?.contentWindow?.postMessage({ type: 'od:preview-scroll-restore', ...previewScroll.current }, '*'); }
     };
     window.addEventListener('message', receive); return () => window.removeEventListener('message', receive);
   }, [count]);
