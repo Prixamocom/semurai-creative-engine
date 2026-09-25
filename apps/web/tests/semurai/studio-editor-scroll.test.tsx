@@ -47,8 +47,10 @@ describe('Studio preview scroll during manual edits', () => {
     await waitFor(() => expect(frame.srcdoc).not.toBe(before));
     expect(frame.srcdoc).toContain('font-size: 48px');
 
-    // The rebuilt document starts at the top and asks the host where to scroll.
+    // The rebuilt document reports its initial top offset first (as seen in
+    // production), then asks the host where to scroll.
     const post = vi.spyOn(frame.contentWindow!, 'postMessage') as unknown as ReturnType<typeof vi.fn>;
+    fromPreview(frame, { type: 'od:preview-scroll', frameLeft: 0, frameTop: 0, canvasLeft: 0, canvasTop: 0 });
     fromPreview(frame, { type: 'od:preview-scroll-request' });
     expect(restoreMessages(post)).toEqual([{ type: 'od:preview-scroll-restore', frameLeft: 0, frameTop: 1480, canvasLeft: 0, canvasTop: 1480 }]);
   });

@@ -8,7 +8,7 @@ import { ManualEditPanel, emptyManualEditDraft, type ManualEditDraft } from '../
 import { applyManualEditPatch } from '../edit-mode/source-patches';
 import type { ManualEditPatch, ManualEditTarget } from '../edit-mode/types';
 import { safeStudioReturn, studioSessionPath, type StudioContext } from './studio-context';
-import { emptyStudioPreviewScroll, nextStudioPreviewScroll, STUDIO_PREVIEW_SCROLL_SETTLE_MS, studioPreviewSource, studioSlideCount } from './studio-preview';
+import { emptyStudioPreviewScroll, nextStudioPreviewScroll, STUDIO_PREVIEW_RELOAD_WAIT_MS, STUDIO_PREVIEW_SCROLL_SETTLE_MS, studioPreviewSource, studioSlideCount } from './studio-preview';
 import { studioEditorCopy } from './studio-editor-copy';
 import { changeSlide, replaceStyleBlock, styleBlocks, studioFileSource, replaceStudioFile, type SlideOperation } from './studio-source';
 import { downloadStudioFile, exportStudioDocument } from './studio-export';
@@ -108,7 +108,7 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
   const [redo, setRedo] = useState<StudioDocument[]>([]);
   const requestKey = useRef<string | null>(null);
   const previewScroll = useRef(emptyStudioPreviewScroll);
-  const previewScrollRequestAt = useRef(0);
+  const previewScrollSettleUntil = useRef(0);
   const active = jobs.find(job => !terminal.has(job.status));
   const dirty = Boolean(document && JSON.stringify(document) !== JSON.stringify(saved?.document));
   const visibleHtml = document ? studioFileSource(document, activeFile) : '';
@@ -291,14 +291,17 @@ export function StudioEditor({ context, expired = false, onClose }: { context: S
       if (data.type === 'od:slide-state' && Number.isInteger(data.active) && data.active >= 0 && data.active < count) setSlide(data.active);
       // Edits rebuild srcdoc, so the preview reloads at the top; keep the last
       // scroll position and hand it back when the reloaded document asks.
-      if (data.type === 'od:preview-scroll' && !data.requestId) previewScroll.current = nextStudioPreviewScroll(previewScroll.current, data, Date.now() - previewScrollRequestAt.current < STUDIO_PREVIEW_SCROLL_SETTLE_MS);
-      if (data.type === 'od:preview-scroll-request') { previewScrollRequestAt.current = Date.now(); frame.current?.contentWindow?.postMessage({ type: 'od:preview-scroll-restore', ...previewScroll.current }, '*'); }
+      if (data.type === 'od:preview-scroll' && !data.requestId) previewScroll.current = nextStudioPreviewScroll(previewScroll.current, data, Date.now() < previewScrollSettleUntil.current);
+      if (data.type === 'od:preview-scroll-request') { previewScrollSettleUntil.current = Date.now() + STUDIO_PREVIEW_SCROLL_SETTLE_MS; frame.current?.contentWindow?.postMessage({ type: 'od:preview-scroll-restore', ...previewScroll.current }, '*'); }
     };
     window.addEventListener('message', receive); return () => window.removeEventListener('message', receive);
   }, [count]);
   // Deck navigation uses the upstream message protocol; rebuilding srcdoc on
   // every reported slide would reset the runtime and undo the user's navigation.
   const srcdoc = useMemo(() => document && (!video || videoRuntime) ? studioPreviewSource(visibleHtml, slide, mode === 'edit', deck, false, true, video ? videoRuntime : undefined) : '', [visibleHtml, mode, deck, video, videoRuntime]);
+  // The reloaded document reports its initial zero offset before asking for a
+  // restore, so the kept position is guarded from the moment srcdoc changes.
+  useEffect(() => { previewScrollSettleUntil.current = Date.now() + STUDIO_PREVIEW_RELOAD_WAIT_MS; }, [srcdoc]);
   function seekVideo(time: number) {
     videoTimeRef.current = time; setVideoTime(time);
     frame.current?.contentWindow?.postMessage({ type: 'semurai:video', time }, '*');

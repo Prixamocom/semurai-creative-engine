@@ -76,6 +76,8 @@ export interface StudioPreviewScroll { frameLeft: number; frameTop: number; canv
 export const emptyStudioPreviewScroll: StudioPreviewScroll = { frameLeft: 0, frameTop: 0, canvasLeft: 0, canvasTop: 0 };
 /** How long after a restore request the reloaded preview may still report a clamped offset. */
 export const STUDIO_PREVIEW_SCROLL_SETTLE_MS = 1200;
+/** How long a rebuilt srcdoc may take to load and ask for its restore. */
+export const STUDIO_PREVIEW_RELOAD_WAIT_MS = 10_000;
 
 /**
  * Every edit rebuilds the preview srcdoc, so the iframe reloads at the top and
