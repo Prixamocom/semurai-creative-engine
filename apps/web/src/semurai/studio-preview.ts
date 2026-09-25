@@ -1,5 +1,5 @@
 import DOMPurify from 'dompurify';
-import { STUDIO_COMMENT_BRIDGE } from './studio-comment-bridge';
+import { STUDIO_COMMENT_BRIDGE, STUDIO_PREVIEW_ACCENT as ACCENT } from './studio-comment-bridge';
 import { DECK_SKELETON_HTML } from '@open-design/contracts';
 import { findRealTagEnd, HTML_TAG_PATTERNS } from '@open-design/contracts/runtime/html-injection-points';
 import { annotateManualEditSourcePaths, annotateMissingOdIds, buildSrcdoc } from '../runtime/srcdoc';
@@ -59,7 +59,8 @@ export function studioPreviewSource(source: string, slide = 0, edit = false, dec
   }
   if (markers) {
     const chrome = parsed.createElement('style');
-    chrome.textContent = '[data-od-edit-guides-layer]{--selected:#d9ff4d;--accent:#d9ff4d;--amber:#d9ff4d;--accent-contrast:#1f1f1f}[data-od-edit-guides-layer] .od-edit-guide-measure{color:#1f1f1f;background:#d9ff4d}[data-od-edit-guides-layer] .od-edit-guide-box{border-color:#d9ff4d!important}[data-od-edit-guides-layer] .od-edit-guide-handle{border-color:#d9ff4d!important;background:#1f1f1f}';
+    // Edit guides in the Studio accent, matching the host selection and markers.
+    chrome.textContent = `[data-od-edit-guides-layer]{--selected:${ACCENT};--accent:${ACCENT};--amber:${ACCENT};--accent-contrast:#fff}[data-od-edit-guides-layer] .od-edit-guide-measure{color:#fff;background:${ACCENT}}[data-od-edit-guides-layer] .od-edit-guide-box{border-color:${ACCENT}!important}[data-od-edit-guides-layer] .od-edit-guide-handle{border-color:${ACCENT}!important;background:#fff}`;
     parsed.head.appendChild(chrome);
   }
   if (markers) { const bridge = parsed.createElement('script'); bridge.textContent = STUDIO_COMMENT_BRIDGE; parsed.body.appendChild(bridge); }

@@ -7,15 +7,17 @@ import { useEffect, useState } from 'react';
 import { useI18n } from '../../i18n';
 import type { StudioContext } from '../studio-context';
 import { StudioEditor } from '../StudioEditor';
-import { DEV_LANDING_HTML, DEV_MEDIA, DEV_SESSION_PATH, devStudioContext } from './fixtures';
+import { DEV_MEDIA, DEV_SESSION_PATH, devComments, devDocument, devStudioContext, type DevFixture } from './fixtures';
 
 type Locale = StudioContext['project']['uiLocale'];
 interface DevVersion { id: string; version: number; kind: string; created_at: string; document: unknown }
+interface DevComment { id: string; text: string; resolved: boolean; revision: number; author: string; created_at: string; target: unknown; replies: { id: string; text: string; author: string; created_at: string }[] }
 
-function installStubs() {
+function installStubs(fixture: DevFixture) {
   const originalFetch = window.fetch.bind(window);
   const OriginalEventSource = window.EventSource;
-  const versions: DevVersion[] = [{ id: 'dev-v1', version: 1, kind: 'generate', created_at: new Date().toISOString(), document: { version: 1, kind: 'page', name: 'Lumen', html: DEV_LANDING_HTML, notes: [] } }];
+  const versions: DevVersion[] = [{ id: 'dev-v1', version: 1, kind: 'generate', created_at: new Date().toISOString(), document: devDocument(fixture) }];
+  let comments: DevComment[] = devComments(fixture);
   const current = () => versions[versions.length - 1]!;
   const json = (data: unknown, status = 200) => new Response(JSON.stringify({ data }), { status, headers: { 'Content-Type': 'application/json' } });
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -32,6 +34,15 @@ function installStubs() {
     }
     if (endpoint === 'document') return json({ id: latest.id, version: latest.version, document: latest.document, document_hash: 'dev-hash-' + latest.version });
     if (endpoint === 'versions') return json([...versions].reverse().map(({ document: _document, ...version }) => version));
+    if (endpoint === 'comments' && method === 'POST') {
+      const now = new Date().toISOString();
+      if (body.action === 'create') comments = [...comments, { id: body.id, text: body.text, target: body.target, resolved: false, revision: 1, author: 'Dev', created_at: now, replies: [] }];
+      else comments = comments.map(item => item.id !== body.id ? item : body.action === 'reply'
+        ? { ...item, revision: item.revision + 1, replies: [...item.replies, { id: body.reply_id, text: body.text, author: 'Dev', created_at: now }] }
+        : { ...item, revision: item.revision + 1, resolved: body.action === 'resolve' });
+      return json(comments);
+    }
+    if (endpoint === 'comments') return json(comments);
     if (endpoint === 'media/search') return json(DEV_MEDIA);
     if (endpoint === 'media/upload') return json({ ...DEV_MEDIA[0]!, id: 'dev-upload-' + Date.now(), title: body.title ?? 'upload', dataUrl: body.image_data ?? DEV_MEDIA[0]!.dataUrl });
     if (endpoint === 'jobs' && method === 'POST') return json({ id: 'dev-job', status: 'failed', operation: 'edit', brief: body.brief ?? '', created_at: new Date().toISOString() });
@@ -53,11 +64,14 @@ export function StudioDevHarness() {
   const { setLocale } = useI18n();
   const [context, setContext] = useState<StudioContext | null>(null);
   useEffect(() => {
-    const restore = installStubs();
-    const requested = new URLSearchParams(window.location.search).get('locale');
+    // ?locale=pl|en|de, ?fixture=deck for a presentation (default: two-file landing page).
+    const query = new URLSearchParams(window.location.search);
+    const fixture: DevFixture = query.get('fixture') === 'deck' ? 'deck' : 'page';
+    const restore = installStubs(fixture);
+    const requested = query.get('locale');
     const locale: Locale = requested === 'en' || requested === 'de' ? requested : 'pl';
     setLocale(locale);
-    setContext(devStudioContext(locale, window.location.origin));
+    setContext(devStudioContext(locale, window.location.origin, fixture));
     return restore;
   }, [setLocale]);
   return context ? <StudioEditor context={context} sessionPath={DEV_SESSION_PATH} onClose={() => {}} /> : null;

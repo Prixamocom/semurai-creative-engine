@@ -41,13 +41,20 @@ export function studioHexColor(value: string): string {
   return '#' + [match[1], match[2], match[3]].map(part => Math.max(0, Math.min(255, Math.round(Number(part)))).toString(16).padStart(2, '0')).join('');
 }
 
-/** Shown value for a style field: hex colors, rounded lengths, nothing for keywords a field cannot edit. */
-export function studioStyleDisplay(key: StudioStyleKey, value: string | undefined): string {
+/**
+ * Shown value for a style field: hex colors, and lengths as written when
+ * `exact` (typed by the user or inline in the source). Measured values are
+ * rounded for reading: whole pixels from 10px up, one decimal below 10px.
+ */
+export function studioStyleDisplay(key: StudioStyleKey, value: string | undefined, exact = false): string {
   const raw = (value ?? '').trim();
   if (COLOR_KEYS.has(key)) return studioHexColor(raw);
+  if (exact) return raw;
   const match = raw.match(/^(-?\d*\.?\d+)(px|%)?$/i);
-  if (match) return String(Math.round(Number(match[1]) * 100) / 100) + (match[2]?.toLowerCase() ?? '');
-  return raw;
+  if (!match) return raw;
+  const number = Number(match[1]); const unit = match[2]?.toLowerCase() ?? '';
+  const rounded = unit === 'px' ? (Math.abs(number) >= 10 ? Math.round(number) : Math.round(number * 10) / 10) : Math.round(number * 100) / 100;
+  return String(rounded === 0 ? 0 : rounded) + unit;
 }
 
 function invalidMessage(key: StudioStyleKey, copy: StudioEditPanelCopy): string {

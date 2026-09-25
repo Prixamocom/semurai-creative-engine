@@ -8,7 +8,12 @@ export const studioEditorCopy = {
     notes: 'Notatki prelegenta', present: 'Prezentuj', layers: 'Elementy', inspect: 'Style i właściwości', downloadHtml: 'HTML + CSS',
     downloadPptx: 'PowerPoint', print: 'Drukuj / PDF', version: 'Wersja', loading: 'Otwieram projekt…', close: 'Zamknij',
     allChanges: 'Każda ukończona zmiana AI zapisuje nową wersję.', localImage: 'Obraz', zoom: 'Powiększenie', newProject: 'Semurai Creative',
-    files: 'Pliki projektu', html: 'index.html', css: 'Style CSS', fullscreen: 'Pełny ekran', savedSource: 'Źródło projektu' },
+    files: 'Pliki projektu', html: 'index.html', css: 'Style CSS', fullscreen: 'Pełny ekran', savedSource: 'Źródło projektu',
+    backToSemurai: 'Wróć do Semurai', closeSession: 'Zamknij sesję', more: 'Więcej opcji', collapsePanel: 'Zwiń panel', expandPanel: 'Pokaż panel',
+    modeChat: 'Czat', modeEdit: 'Edycja', tools: 'Narzędzia', toolSelect: 'Zaznacz', toolSelectHint: 'Podgląd projektu i czat AI', toolComment: 'Komentarz', toolCommentHint: 'Komentuj elementy projektu',
+    toolEdit: 'Edycja', toolEditHint: 'Edytuj elementy ręcznie', openComments: 'Otwarte komentarze', view: 'Widok', devices: 'Urządzenie',
+    zoomIn: 'Powiększ', zoomOut: 'Pomniejsz', zoomFit: 'Dopasuj do szerokości', presentStart: 'Od początku', presentCurrent: 'Od bieżącego slajdu', presenterView: 'Widok prezentera',
+    sheet: 'Arkusz', currentVersion: 'Bieżąca', exportMenu: 'Opcje eksportu' },
   en: { queued: 'Queued…', planning: 'Reviewing the request and planning…', checking: 'Checking project files…', saving: 'Saving the new version…', needsInput: 'Waiting for your answer', execution: 'Execution record', plan: 'Execution plan', read: 'Read', write: 'Update file', search: 'Search', execute: 'Execute', delegate: 'Agent task', harnessBlocked: 'The task stopped before completion. Your previous version remains available.', harnessUnavailable: 'The design engine could not start. Please retry.', exportHistory: 'Saved exports', noExports: 'Your exported files will appear here.', downloadAgain: 'Download again', exportSaveFailed: 'Your file was downloaded, but a copy could not be saved to this project.', expired: 'Session expired. Reopen Studio from Semurai. You can download unsaved work as HTML.', duplicateSlide: 'Duplicate slide', removeSlide: 'Delete slide', moveUp: 'Move earlier', moveDown: 'Move later', back: 'Back to chat', saved: 'Saved', unsaved: 'Unsaved changes', save: 'Save', preview: 'Preview', source: 'Source', edit: 'Edit',
     desktop: 'Desktop', tablet: 'Tablet', mobile: 'Mobile', undo: 'Undo', redo: 'Redo', history: 'History', export: 'Export',
     chat: 'Project chat', ask: 'What would you like to change?', send: 'Send', working: 'Applying changes…', completed: 'New version ready',
@@ -18,7 +23,12 @@ export const studioEditorCopy = {
     notes: 'Speaker notes', present: 'Present', layers: 'Elements', inspect: 'Styles and properties', downloadHtml: 'HTML + CSS',
     downloadPptx: 'PowerPoint', print: 'Print / PDF', version: 'Version', loading: 'Opening project…', close: 'Close',
     allChanges: 'Each completed AI change saves a new version.', localImage: 'Image', zoom: 'Zoom', newProject: 'Semurai Creative',
-    files: 'Project files', html: 'index.html', css: 'CSS styles', fullscreen: 'Full screen', savedSource: 'Project source' },
+    files: 'Project files', html: 'index.html', css: 'CSS styles', fullscreen: 'Full screen', savedSource: 'Project source',
+    backToSemurai: 'Back to Semurai', closeSession: 'Close session', more: 'More options', collapsePanel: 'Collapse panel', expandPanel: 'Show panel',
+    modeChat: 'Chat', modeEdit: 'Edit', tools: 'Tools', toolSelect: 'Select', toolSelectHint: 'Project preview and AI chat', toolComment: 'Comment', toolCommentHint: 'Comment on project elements',
+    toolEdit: 'Edit', toolEditHint: 'Edit elements by hand', openComments: 'Open comments', view: 'View', devices: 'Device',
+    zoomIn: 'Zoom in', zoomOut: 'Zoom out', zoomFit: 'Fit to width', presentStart: 'From the beginning', presentCurrent: 'From current slide', presenterView: 'Presenter view',
+    sheet: 'Sheet', currentVersion: 'Current', exportMenu: 'Export options' },
   de: { queued: 'In der Warteschlange…', planning: 'Anfrage analysieren und planen…', checking: 'Projektdateien prüfen…', saving: 'Neue Version speichern…', needsInput: 'Warte auf deine Antwort', execution: 'Arbeitsverlauf', plan: 'Ausführungsplan', read: 'Lesen', write: 'Datei ändern', search: 'Suchen', execute: 'Ausführen', delegate: 'Agent-Aufgabe', harnessBlocked: 'Die Aufgabe wurde vor dem Abschluss gestoppt. Deine vorherige Version bleibt verfügbar.', harnessUnavailable: 'Die Design-Engine konnte nicht gestartet werden. Bitte erneut versuchen.', exportHistory: 'Gespeicherte Exporte', noExports: 'Exportierte Dateien erscheinen hier.', downloadAgain: 'Erneut herunterladen', exportSaveFailed: 'Die Datei wurde heruntergeladen, aber eine Kopie konnte nicht im Projekt gespeichert werden.', expired: 'Sitzung abgelaufen. Öffne Studio erneut über Semurai. Ungespeicherte Arbeit kann als HTML heruntergeladen werden.', duplicateSlide: 'Folie duplizieren', removeSlide: 'Folie löschen', moveUp: 'Nach vorne', moveDown: 'Nach hinten', back: 'Zurück zum Chat', saved: 'Gespeichert', unsaved: 'Ungespeicherte Änderungen', save: 'Speichern', preview: 'Vorschau', source: 'Quelltext', edit: 'Bearbeiten',
     desktop: 'Computer', tablet: 'Tablet', mobile: 'Mobil', undo: 'Rückgängig', redo: 'Wiederholen', history: 'Verlauf', export: 'Export',
     chat: 'Projektchat', ask: 'Was möchtest du am Projekt ändern?', send: 'Senden', working: 'Änderungen werden angewendet…', completed: 'Neue Version bereit',
@@ -28,12 +38,27 @@ export const studioEditorCopy = {
     notes: 'Sprechernotizen', present: 'Präsentieren', layers: 'Elemente', inspect: 'Stile und Eigenschaften', downloadHtml: 'HTML + CSS',
     downloadPptx: 'PowerPoint', print: 'Drucken / PDF', version: 'Version', loading: 'Projekt wird geöffnet…', close: 'Schließen',
     allChanges: 'Jede abgeschlossene KI-Änderung speichert eine neue Version.', localImage: 'Bild', zoom: 'Zoom', newProject: 'Semurai Creative',
-    files: 'Projektdateien', html: 'index.html', css: 'CSS-Stile', fullscreen: 'Vollbild', savedSource: 'Projektquelltext' },
+    files: 'Projektdateien', html: 'index.html', css: 'CSS-Stile', fullscreen: 'Vollbild', savedSource: 'Projektquelltext',
+    backToSemurai: 'Zurück zu Semurai', closeSession: 'Sitzung schließen', more: 'Weitere Optionen', collapsePanel: 'Bereich einklappen', expandPanel: 'Bereich einblenden',
+    modeChat: 'Chat', modeEdit: 'Bearbeiten', tools: 'Werkzeuge', toolSelect: 'Auswählen', toolSelectHint: 'Projektvorschau und KI-Chat', toolComment: 'Kommentar', toolCommentHint: 'Projektelemente kommentieren',
+    toolEdit: 'Bearbeiten', toolEditHint: 'Elemente manuell bearbeiten', openComments: 'Offene Kommentare', view: 'Ansicht', devices: 'Gerät',
+    zoomIn: 'Vergrößern', zoomOut: 'Verkleinern', zoomFit: 'An Breite anpassen', presentStart: 'Von Anfang an', presentCurrent: 'Ab aktueller Folie', presenterView: 'Referentenansicht',
+    sheet: 'Stylesheet', currentVersion: 'Aktuell', exportMenu: 'Exportoptionen' },
 };
 
 /** Copy for the docked Edit panel (StudioEditPanel and its field primitives). */
+/** "<n> files" with the grammatical plural of each locale (Polish: plik / pliki / plików). */
+export function studioFileCount(locale: keyof typeof studioEditorCopy, count: number): string {
+  if (locale === 'pl') {
+    const tens = count % 100, units = count % 10;
+    return count + ' ' + (count === 1 ? 'plik' : units >= 2 && units <= 4 && (tens < 12 || tens > 14) ? 'pliki' : 'plików');
+  }
+  if (locale === 'de') return count + (count === 1 ? ' Datei' : ' Dateien');
+  return count + (count === 1 ? ' file' : ' files');
+}
+
 export const studioEditPanelCopy = {
-  pl: { title: 'Edycja', modes: 'Tryb edycji', simple: 'Proste', pro: 'Pro', code: 'Kod', layers: 'Warstwy', layersEmpty: 'Warstwy pojawią się po wczytaniu podglądu.', expand: 'Rozwiń', collapse: 'Zwiń',
+  pl: { title: 'Edycja', properties: 'Właściwości', modes: 'Tryb edycji', simple: 'Proste', pro: 'Pro', code: 'Kod', layers: 'Warstwy', layersEmpty: 'Warstwy pojawią się po wczytaniu podglądu.', expand: 'Rozwiń', collapse: 'Zwiń',
     parent: 'Zaznacz element nadrzędny', remove: 'Usuń element', deselect: 'Odznacz', path: 'Ścieżka elementu', page: 'Strona', pageHint: 'Kliknij element w podglądzie lub na liście warstw, aby go edytować. Zmiany widać od razu, a Zapisz tworzy nową wersję.',
     content: 'Treść', typography: 'Typografia', appearance: 'Wygląd', size: 'Wymiary', spacing: 'Odstępy', layout: 'Układ', style: 'Styl', border: 'Obramowanie',
     text: 'Tekst', textHint: 'Zatwierdź kliknięciem poza polem lub Ctrl+Enter.', href: 'Adres', src: 'Adres obrazu', alt: 'Opis', embedded: 'Obraz osadzony', changeImage: 'Zmień obraz', editHtml: 'Edytuj HTML w zakładce Kod',
@@ -45,7 +70,7 @@ export const studioEditPanelCopy = {
     none: 'Brak', inherit: 'Domyślny', current: 'Obecny', pickColor: 'Wybierz kolor',
     invalidLength: 'Wpisz liczbę w px.', invalidLengthPercent: 'Wpisz liczbę w px lub %.', invalidLengthAuto: 'Wpisz liczbę w px albo auto.', invalidColor: 'Wpisz kolor w formacie #rrggbb.', invalidOpacity: 'Wpisz liczbę od 0 do 1.', invalidLineHeight: 'Wpisz liczbę albo wartość w px.', invalidOption: 'Wybierz wartość z listy.',
     html: 'HTML elementu', applyHtml: 'Zastosuj HTML', invalidHtml: 'Wpisz jeden poprawny element HTML.', htmlHint: 'Zmiana HTML dotyczy tylko zaznaczonego elementu.', htmlSelect: 'Zaznacz element, aby edytować jego HTML.' },
-  en: { title: 'Edit', modes: 'Edit mode', simple: 'Simple', pro: 'Pro', code: 'Code', layers: 'Layers', layersEmpty: 'Layers appear once the preview has loaded.', expand: 'Expand', collapse: 'Collapse',
+  en: { title: 'Edit', properties: 'Properties', modes: 'Edit mode', simple: 'Simple', pro: 'Pro', code: 'Code', layers: 'Layers', layersEmpty: 'Layers appear once the preview has loaded.', expand: 'Expand', collapse: 'Collapse',
     parent: 'Select parent element', remove: 'Delete element', deselect: 'Deselect', path: 'Element path', page: 'Page', pageHint: 'Click an element in the preview or in the layer list to edit it. Changes show up right away, and Save creates a new version.',
     content: 'Content', typography: 'Typography', appearance: 'Appearance', size: 'Sizing', spacing: 'Spacing', layout: 'Layout', style: 'Style', border: 'Border',
     text: 'Text', textHint: 'Click outside the field or press Ctrl+Enter to apply.', href: 'Link', src: 'Image URL', alt: 'Alt text', embedded: 'Embedded image', changeImage: 'Change image', editHtml: 'Edit HTML in the Code tab',
@@ -57,7 +82,7 @@ export const studioEditPanelCopy = {
     none: 'None', inherit: 'Default', current: 'Current', pickColor: 'Pick a color',
     invalidLength: 'Enter a number in px.', invalidLengthPercent: 'Enter a number in px or %.', invalidLengthAuto: 'Enter a number in px or auto.', invalidColor: 'Enter a color as #rrggbb.', invalidOpacity: 'Enter a number from 0 to 1.', invalidLineHeight: 'Enter a number or a px value.', invalidOption: 'Pick a value from the list.',
     html: 'Element HTML', applyHtml: 'Apply HTML', invalidHtml: 'Enter one valid HTML element.', htmlHint: 'HTML changes affect only the selected element.', htmlSelect: 'Select an element to edit its HTML.' },
-  de: { title: 'Bearbeiten', modes: 'Bearbeitungsmodus', simple: 'Einfach', pro: 'Pro', code: 'Code', layers: 'Ebenen', layersEmpty: 'Ebenen erscheinen, sobald die Vorschau geladen ist.', expand: 'Aufklappen', collapse: 'Zuklappen',
+  de: { title: 'Bearbeiten', properties: 'Eigenschaften', modes: 'Bearbeitungsmodus', simple: 'Einfach', pro: 'Pro', code: 'Code', layers: 'Ebenen', layersEmpty: 'Ebenen erscheinen, sobald die Vorschau geladen ist.', expand: 'Aufklappen', collapse: 'Zuklappen',
     parent: 'Übergeordnetes Element auswählen', remove: 'Element löschen', deselect: 'Auswahl aufheben', path: 'Elementpfad', page: 'Seite', pageHint: 'Klicke auf ein Element in der Vorschau oder in der Ebenenliste, um es zu bearbeiten. Änderungen sind sofort sichtbar, Speichern erstellt eine neue Version.',
     content: 'Inhalt', typography: 'Typografie', appearance: 'Darstellung', size: 'Abmessungen', spacing: 'Abstände', layout: 'Anordnung', style: 'Stil', border: 'Rahmen',
     text: 'Text', textHint: 'Zum Übernehmen außerhalb klicken oder Strg+Enter drücken.', href: 'Link', src: 'Bild-URL', alt: 'Alternativtext', embedded: 'Eingebettetes Bild', changeImage: 'Bild ändern', editHtml: 'HTML im Tab Code bearbeiten',

@@ -1,4 +1,0 @@
-.menu { position:relative; }
-.options { position:absolute; top:calc(100% + 8px); right:0; z-index:30; min-width:190px; padding:6px; display:grid; gap:3px; border:1px solid var(--border); border-radius:12px; background:var(--bg-panel); box-shadow:var(--shadow-lg); }
-.options button { width:100%; justify-content:flex-start; gap:9px; border:0; padding:10px 12px; white-space:nowrap; }
-.options button:hover,.options button:focus-visible { background:var(--bg-subtle); }

@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react';
-import { Button } from '@open-design/components';
 import { Check, Send, Sparkles } from 'lucide-react';
 import { reviewCopy, threadBrief, type StudioComment } from './studio-review';
 import styles from './StudioReview.module.css';
+import { StudioButton } from './StudioButton';
 
 export function StudioCommentThread({ comment, locale, disabled, api, onChange, onAsk }: {
   comment: StudioComment; locale: 'pl' | 'en' | 'de'; disabled: boolean;
@@ -10,7 +10,7 @@ export function StudioCommentThread({ comment, locale, disabled, api, onChange, 
   onChange: (comments: StudioComment[]) => void; onAsk: (text: string) => void;
 }) {
   const c = reviewCopy[locale];
-  const replyLabel = { pl: 'Odpowiedz', en: 'Reply', de: 'Antworten' }[locale];
+  const replyLabel = c.reply;
   const [reply, setReply] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const key = useRef<string | null>(null);
   async function mutate(action: 'reply' | 'resolve' | 'reopen') {
@@ -33,10 +33,10 @@ export function StudioCommentThread({ comment, locale, disabled, api, onChange, 
       <p>{message.text}</p>
     </div>)}
     <form onSubmit={event => { event.preventDefault(); if (reply.trim()) void mutate('reply'); }}>
-      <textarea aria-label={replyLabel} placeholder={replyLabel + '…'} value={reply} maxLength={4000} rows={2} onChange={event => { setReply(event.target.value); key.current = null; }} />
-      <Button type="submit" title={replyLabel} disabled={disabled || busy || !reply.trim()}><Send size={14} />{replyLabel}</Button>
+      <textarea className={styles.input} aria-label={replyLabel} placeholder={replyLabel + '…'} value={reply} maxLength={4000} rows={2} onChange={event => { setReply(event.target.value); key.current = null; }} />
+      <StudioButton type="submit" variant="secondary" disabled={disabled || busy || !reply.trim()}><Send size={16} />{replyLabel}</StudioButton>
     </form>
-    <div className={styles.actions}><Button disabled={disabled || busy} onClick={() => { void mutate(comment.resolved ? 'reopen' : 'resolve'); }}><Check size={14} />{comment.resolved ? c.reopen : c.resolve}</Button><Button disabled={disabled || busy} onClick={() => onAsk(threadBrief(comment))}><Sparkles size={14} />{c.ask}</Button></div>
-    {error && <p role="alert">{error}</p>}
+    <div className={styles.actions}><StudioButton disabled={disabled || busy} onClick={() => { void mutate(comment.resolved ? 'reopen' : 'resolve'); }}><Check size={16} />{comment.resolved ? c.reopen : c.resolve}</StudioButton><StudioButton disabled={disabled || busy} onClick={() => onAsk(threadBrief(comment))}><Sparkles size={16} />{c.ask}</StudioButton></div>
+    {error && <p role="alert" className={styles.error}>{error}</p>}
   </div>;
 }

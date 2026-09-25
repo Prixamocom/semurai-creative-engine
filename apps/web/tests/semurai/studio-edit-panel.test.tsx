@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { StudioEditor } from '../../src/semurai/StudioEditor';
 import { StudioEditPanel } from '../../src/semurai/StudioEditPanel';
 import { studioLayerTree } from '../../src/semurai/studio-layers';
-import { STUDIO_FONT_OPTIONS, stepStudioValue, studioHexColor } from '../../src/semurai/studio-edit-values';
+import { STUDIO_FONT_OPTIONS, stepStudioValue, studioHexColor, studioStyleDisplay } from '../../src/semurai/studio-edit-values';
 import { normalizeManualEditStyles } from '../../src/components/ManualEditPanel';
 import { applyManualEditPatch } from '../../src/edit-mode/source-patches';
 import type { StudioContext } from '../../src/semurai/studio-context';
@@ -64,6 +64,22 @@ describe('Studio edit panel values', () => {
     expect(stepStudioValue('opacity', '1', 1, false)).toBe('1');
     expect(stepStudioValue('lineHeight', '1.5', -1, false)).toBe('1.4');
     expect(stepStudioValue('width', 'auto', 1, false)).toBeNull();
+  });
+  it('rounds measured lengths for display but keeps exact typed or inline values', () => {
+    expect(studioStyleDisplay('width', '335.94px')).toBe('336px');
+    expect(studioStyleDisplay('fontSize', '46.2px')).toBe('46px');
+    expect(studioStyleDisplay('letterSpacing', '-1.536px')).toBe('-1.5px');
+    expect(studioStyleDisplay('paddingTop', '0.04px')).toBe('0px');
+    expect(studioStyleDisplay('opacity', '0.856')).toBe('0.86');
+    expect(studioStyleDisplay('width', '335.94px', true)).toBe('335.94px');
+    expect(studioStyleDisplay('color', 'rgb(32, 32, 32)', true)).toBe('#202020');
+  });
+  it('shows rounded computed values and the exact inline value in the panel', () => {
+    const source = '<!doctype html><html><head></head><body><h1 data-od-id="hero" style="line-height: 1.125">Welcome</h1></body></html>';
+    panel({ source, selected: target('hero', { styles: { ...computed, width: '335.94px', lineHeight: '1.125', letterSpacing: '-1.536px' } }) });
+    expect((screen.getByRole('textbox', { name: 'Width' }) as HTMLInputElement).value).toBe('336px');
+    expect((screen.getByRole('textbox', { name: 'Letter spacing' }) as HTMLInputElement).value).toBe('-1.5px');
+    expect((screen.getByRole('textbox', { name: 'Line height' }) as HTMLInputElement).value).toBe('1.125');
   });
   it('offers only font families the upstream normalizer accepts', () => {
     for (const option of STUDIO_FONT_OPTIONS) expect(normalizeManualEditStyles({ fontFamily: option.value }, { layoutEnabled: false }).ok).toBe(true);

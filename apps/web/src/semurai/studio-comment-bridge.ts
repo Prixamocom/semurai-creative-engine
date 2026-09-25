@@ -1,3 +1,12 @@
+/**
+ * The Studio accent (--blue in styles/tokens.css) for UI drawn inside the
+ * preview iframe, which cannot read the host's CSS variables: comment markers,
+ * the measurement tooltip and the edit selection guides.
+ */
+export const STUDIO_PREVIEW_ACCENT = '#1a74ff';
+const ACCENT_STRONG = '#0f5fd6';
+const RESOLVED = '#8a8a8a';
+
 /** Trusted preview-only UI. The shadow tree never enters saved source or exports. */
 export const STUDIO_COMMENT_BRIDGE = String.raw`(function () {
   var host = document.createElement('div');
@@ -6,11 +15,11 @@ export const STUDIO_COMMENT_BRIDGE = String.raw`(function () {
   document.documentElement.appendChild(host);
   var shadow = host.attachShadow({mode:'open'});
   var style = document.createElement('style');
-  style.textContent = 'button{position:fixed;box-sizing:border-box;width:34px;height:34px;border:3px solid white;border-radius:50% 50% 50% 8px;background:#d86b48;color:white;font:600 14px/1 system-ui;box-shadow:0 2px 8px #0003;pointer-events:auto;cursor:pointer;padding:0}button:hover,button:focus-visible,button[aria-pressed=true]{background:#ad4226;outline:2px solid #d86b48;outline-offset:2px}button[data-resolved=true]{background:#778078}';
+  style.textContent = 'button{position:fixed;box-sizing:border-box;width:34px;height:34px;border:3px solid white;border-radius:50% 50% 50% 8px;background:${STUDIO_PREVIEW_ACCENT};color:white;font:600 13px/1 system-ui;box-shadow:0 2px 8px #0003;pointer-events:auto;cursor:pointer;padding:0}button:hover,button:focus-visible,button[aria-pressed=true]{background:${ACCENT_STRONG};outline:2px solid ${STUDIO_PREVIEW_ACCENT};outline-offset:2px}button[data-resolved=true]{background:${RESOLVED}}';
   shadow.appendChild(style);
   var tooltip = document.createElement('div');
   tooltip.dataset.studioMeasurement = '';
-  tooltip.style.cssText = 'position:fixed;padding:5px 8px;border-radius:6px;background:#d9ff4d;color:#1f1f1f;font:600 11px/1.4 system-ui;box-shadow:0 2px 8px #0002;pointer-events:none';
+  tooltip.style.cssText = 'position:fixed;padding:5px 8px;border-radius:6px;background:${STUDIO_PREVIEW_ACCENT};color:white;font:600 11px/1.4 system-ui;box-shadow:0 2px 8px #0002;pointer-events:none';
   tooltip.hidden = true; shadow.appendChild(tooltip);
   var editing = false;
   window.addEventListener('pointermove', function(event) {

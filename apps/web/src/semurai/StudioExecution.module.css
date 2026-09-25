@@ -1,14 +1,16 @@
-.record { margin: 12px 0; border-left: 2px solid var(--border); padding: 4px 0 4px 12px; color: var(--text-muted); font-size: 12px; }
-.record summary { cursor: pointer; padding: 5px 0; color: var(--text-strong); }
-.row { display: flex; align-items: center; gap: 8px; padding: 6px 0; min-width: 0; }
+/* Execution record inside a chat turn; values come from the --studio-* tokens. */
+.record { margin: var(--studio-space-3) 0; padding: var(--studio-space-1) 0 var(--studio-space-1) var(--studio-space-3); border-left: 2px solid var(--studio-border); color: var(--studio-text-secondary); font-size: var(--studio-text-md); line-height: 18px; }
+.record summary { padding: var(--studio-space-1) 0; color: var(--studio-text); cursor: pointer; }
+.row { display: flex; align-items: center; gap: var(--studio-space-2); min-width: 0; padding: var(--studio-space-1) 0; }
 .row svg { flex-shrink: 0; }
 .row span { overflow-wrap: anywhere; }
-.row time { margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.plan { list-style: none; padding: 4px 0; margin: 0; }
-.plan li { display: flex; gap: 8px; align-items: baseline; padding: 5px 0; }
-.plan li[data-state=completed] { color: var(--text-muted); }
+.row time { margin-left: auto; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.plan { margin: 0; padding: var(--studio-space-1) 0; list-style: none; }
+.plan li { display: flex; align-items: baseline; gap: var(--studio-space-2); padding: var(--studio-space-1) 0; }
+.plan li svg { align-self: center; flex-shrink: 0; }
+.plan li[data-state=completed] { color: var(--studio-text-tertiary); }
 .status { display: inline-flex; align-items: center; gap: 6px; }
 .spin { animation: spin 1s linear infinite; }
-.error { color: #b34232; }
+.error { color: var(--studio-danger); }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }

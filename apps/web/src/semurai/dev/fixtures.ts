@@ -1,4 +1,5 @@
 // Development-only fixtures for StudioDevHarness. Never imported by production code.
+import { DECK_SKELETON_HTML } from '@open-design/contracts';
 import type { StudioContext } from '../studio-context';
 
 export const DEV_PROJECT_ID = '00000000-0000-4000-8000-00000000de70';
@@ -47,15 +48,49 @@ export const DEV_LANDING_HTML = `<!doctype html>
 <footer class="footer" id="contact"><span>© 2026 Lumen Coffee Roasters</span><nav><a href="https://example.com/regulamin">Regulamin</a><a href="https://example.com/prywatnosc">Prywatność</a></nav></footer>
 </body></html>`;
 
-const pixel = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+/** A second project file, so the harness exercises the file switcher. */
+export const DEV_ABOUT_HTML = `<!doctype html>
+<html lang="pl"><head><meta charset="utf-8"><title>O nas</title>
+<style>body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#1d1d1f;background:#fbfaf7}main{max-width:760px;margin:0 auto;padding:96px 32px}h1{font-size:48px;margin:0 0 20px}p{font-size:18px;line-height:1.7;color:#5b5b5b}</style></head>
+<body><main><h1>O palarni Lumen</h1><p>Zaczęliśmy w 2019 roku od jednego pieca i trzech odmian ziarna. Dziś palimy dwanaście kaw z ośmiu krajów, ale każdą partię nadal sprawdzamy ręcznie.</p><p>Odwiedź nas w każdą sobotę na degustacji w Krakowie.</p></main></body></html>`;
+
+/** A three-slide deck built on the upstream deck skeleton (open with ?fixture=deck). */
+export const DEV_DECK_HTML = DECK_SKELETON_HTML
+  .replace(/<section class="slide active"[\s\S]*<\/section>/, [
+    '<style>.slide{padding:120px 160px;background:#fbfaf7;color:#1d1d1f;font-family:Arial,Helvetica,sans-serif}.slide h1{font-size:120px;margin:0 0 40px}.slide h2{font-size:80px;margin:0 0 32px}.slide p{font-size:40px;line-height:1.5;color:#5b5b5b}</style>',
+    '<section class="slide active" data-screen-label="01 Tytuł"><h1>Lumen 2027</h1><p>Plan rozwoju palarni na kolejny rok</p></section>',
+    '<section class="slide" data-screen-label="02 Wyniki"><h2>Wyniki 2026</h2><p>1 240 aktywnych subskrypcji, 18 ton kawy, 4,8 w opiniach klientów.</p></section>',
+    '<section class="slide" data-screen-label="03 Plan"><h2>Co dalej</h2><p>Nowa linia kaw z Etiopii, sklep stacjonarny w Krakowie i subskrypcje dla biur.</p></section>',
+  ].join('\n'));
+
+const pixel ='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 export const DEV_MEDIA = [
   { id: 'dev-media-1', title: 'Ziarno (próbka)', description: 'Obraz testowy', dataUrl: pixel },
   { id: 'dev-media-2', title: 'Paczka (próbka)', description: 'Obraz testowy', dataUrl: pixel },
 ];
 
-export function devStudioContext(locale: StudioContext['project']['uiLocale'], origin: string): StudioContext {
+export type DevFixture = 'page' | 'deck';
+
+/** The harness document for a fixture: a two-file landing page or a deck. */
+export function devDocument(fixture: DevFixture) {
+  return fixture === 'deck'
+    ? { version: 1, kind: 'presentation', name: 'Lumen 2027', html: DEV_DECK_HTML, notes: ['Przywitaj się i przedstaw cel spotkania.', 'Podkreśl wzrost subskrypcji.', ''] }
+    : { version: 1, kind: 'page', name: 'Lumen', html: DEV_LANDING_HTML, files: [{ path: 'o-nas.html', content: DEV_ABOUT_HTML }], notes: [] };
+}
+
+/** Seed comments: one open and one resolved, so the counts can be checked. */
+export function devComments(fixture: DevFixture) {
+  const created_at = new Date().toISOString();
+  const target = (label: string, selector: string) => ({ file: 'index.html', version: 1, label, selector, text: '' });
+  return fixture === 'deck' ? [] : [
+    { id: 'dev-comment-1', text: 'Nagłówek jest za długi, skróćmy go do jednej linii.', target: target('h1', '.hero h1'), resolved: false, revision: 1, author: 'Anna', created_at, replies: [] },
+    { id: 'dev-comment-2', text: 'Cennik wygląda dobrze.', target: target('h2', '.pricing h2'), resolved: true, revision: 1, author: 'Anna', created_at, replies: [] },
+  ];
+}
+
+export function devStudioContext(locale: StudioContext['project']['uiLocale'], origin: string, fixture: DevFixture = 'page'): StudioContext {
   return {
     projectId: DEV_PROJECT_ID, workspaceId: 'dev-workspace', returnUrl: origin + '/app/creative/' + DEV_PROJECT_ID, expiresAt: Date.now() + 24 * 3_600_000,
-    project: { title: 'Lumen Coffee Roasters (dev)', artifactType: 'page', locale, sourceLocale: locale, uiLocale: locale, direction: 'ltr', currentVersion: 1, coreOrigin: origin },
+    project: { title: fixture === 'deck' ? 'Lumen 2027 (dev)' : 'Lumen Coffee Roasters (dev)', artifactType: fixture === 'deck' ? 'presentation' : 'page', locale, sourceLocale: locale, uiLocale: locale, direction: 'ltr', currentVersion: 1, coreOrigin: origin },
   };
 }

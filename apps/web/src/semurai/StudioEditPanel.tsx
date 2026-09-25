@@ -11,6 +11,7 @@ import { STUDIO_BORDER_STYLES, STUDIO_FONT_OPTIONS, STUDIO_FONT_WEIGHTS, studioS
 import { studioLayerPath, studioLayerTree } from './studio-layers';
 import { StudioColorField, StudioField, StudioQuadField, StudioSegmented, StudioSelectField } from './StudioFields';
 import { StudioLayerTree } from './StudioLayerTree';
+import { StudioImageMenu } from './StudioImageMenu';
 import styles from './StudioEditPanel.module.css';
 
 export type StudioInspectorMode = 'simple' | 'pro' | 'code';
@@ -66,8 +67,10 @@ function Properties({ c, mode, source, target, disabled, commit, onPatch, onMode
 }) {
   const [borderAdded, setBorderAdded] = useState(false);
   const fields = useMemo(() => ({ ...target.fields, ...readManualEditFields(source, target.id) }), [source, target]);
+  // Values written inline in the source are shown exactly; measured (computed) ones are rounded.
+  const inline = useMemo(() => readManualEditStyles(source, target.id), [source, target.id]);
   const raw = (key: StudioStyleKey) => target.styles[key] ?? '';
-  const value = (key: StudioStyleKey) => studioStyleDisplay(key, target.styles[key]);
+  const value = (key: StudioStyleKey) => { const own = inline[key]?.trim(); return studioStyleDisplay(key, own || target.styles[key], Boolean(own)); };
   const field = (key: StudioStyleKey, label: string, placeholder?: string) => <StudioField label={label} ariaLabel={label} value={value(key)} placeholder={placeholder} step={key} disabled={disabled} onCommit={next => commit({ [key]: next })} />;
   const color = (key: StudioStyleKey, label: string) => <StudioColorField label={label} value={value(key)} pickLabel={c.pickColor} placeholder={c.none} disabled={disabled} onCommit={next => commit({ [key]: next })} />;
   const fontSelect = <StudioSelectField label={c.font} value={raw('fontFamily')} disabled={disabled} options={[{ value: '', label: c.inherit }, ...STUDIO_FONT_OPTIONS]} onCommit={next => commit({ fontFamily: next })} />;
@@ -161,9 +164,9 @@ function PageProperties({ c, source, disabled, onPatch }: { c: StudioEditPanelCo
     onPatch({ kind: 'set-style', id: '__body__', styles: result.styles }); return null;
   };
   return <Section title={c.page}>
-    <StudioColorField label={c.background} value={studioStyleDisplay('backgroundColor', page.backgroundColor)} pickLabel={c.pickColor} placeholder={c.none} disabled={disabled} onCommit={next => commit({ backgroundColor: next })} />
+    <StudioColorField label={c.background} value={studioStyleDisplay('backgroundColor', page.backgroundColor, true)} pickLabel={c.pickColor} placeholder={c.none} disabled={disabled} onCommit={next => commit({ backgroundColor: next })} />
     <StudioSelectField label={c.font} value={page.fontFamily} disabled={disabled} options={[{ value: '', label: c.inherit }, ...STUDIO_FONT_OPTIONS]} onCommit={next => commit({ fontFamily: next })} />
-    <div className={styles.row2}><StudioField label={c.baseSize} ariaLabel={c.baseSize} value={studioStyleDisplay('fontSize', page.fontSize)} placeholder="16px" step="fontSize" disabled={disabled} onCommit={next => commit({ fontSize: next })} /></div>
+    <div className={styles.row2}><StudioField label={c.baseSize} ariaLabel={c.baseSize} value={studioStyleDisplay('fontSize', page.fontSize, true)} placeholder="16px" step="fontSize" disabled={disabled} onCommit={next => commit({ fontSize: next })} /></div>
     <p className={styles.hint}>{c.pageHint}</p>
   </Section>;
 }
@@ -173,11 +176,13 @@ function PageProperties({ c, source, disabled, onPatch }: { c: StudioEditPanelCo
  * only the changed property (Enter, blur, segment click or arrow step); text
  * commits on blur or Ctrl/Cmd+Enter. The Studio header Save stays the only
  * version save, and all commits run through the editor's undoable patch().
+ * `onInsertImage` adds the "Add image" menu to the panel header (not for decks).
  */
-export function StudioEditPanel({ locale, source, targets, selected, mode, layersOpen, disabled, onMode, onLayersOpen, onSelect, onPatch, onPickImage }: {
+export function StudioEditPanel({ locale, source, targets, selected, mode, layersOpen, disabled, onMode, onLayersOpen, onSelect, onPatch, onPickImage, onInsertImage }: {
   locale: keyof typeof studioEditPanelCopy; source: string; targets: ManualEditTarget[]; selected: ManualEditTarget | null; mode: StudioInspectorMode;
   layersOpen: boolean; disabled: boolean; onMode: (mode: StudioInspectorMode) => void; onLayersOpen: (open: boolean) => void;
   onSelect: (target: ManualEditTarget | null) => void; onPatch: (patch: ManualEditPatch) => boolean; onPickImage: () => void;
+  onInsertImage?: (source: 'attach' | 'library') => void;
 }) {
   const c = studioEditPanelCopy[locale];
   const layers = useMemo(() => studioLayerTree(source, targets), [source, targets]);
@@ -194,12 +199,15 @@ export function StudioEditPanel({ locale, source, targets, selected, mode, layer
   const crumbs = path.length ? path.slice(-4) : [];
   return <div className={styles.panel} data-testid="studio-edit-panel">
     <header className={styles.head}>
-      <strong>{c.title}</strong>
-      {selected && <div className={styles.headActions}>
-        <button type="button" className={styles.iconButton} aria-label={c.parent} title={c.parent} disabled={!parent} onClick={() => parent && onSelect(parent)}><CornerLeftUp size={16} /></button>
-        <button type="button" className={styles.iconButton} aria-label={c.remove} title={c.remove} disabled={disabled} onClick={() => { if (onPatch({ kind: 'remove-element', id: selected.id })) onSelect(null); }}><Trash2 size={16} /></button>
-        <button type="button" className={styles.iconButton} aria-label={c.deselect} title={c.deselect} onClick={() => onSelect(null)}><X size={16} /></button>
-      </div>}
+      <strong>{c.properties}</strong>
+      <div className={styles.headActions}>
+        {onInsertImage && <StudioImageMenu locale={locale} disabled={disabled} onSelect={onInsertImage} />}
+        {selected && <>
+          <button type="button" className={styles.iconButton} aria-label={c.parent} title={c.parent} disabled={!parent} onClick={() => parent && onSelect(parent)}><CornerLeftUp size={16} /></button>
+          <button type="button" className={styles.iconButton} aria-label={c.remove} title={c.remove} disabled={disabled} onClick={() => { if (onPatch({ kind: 'remove-element', id: selected.id })) onSelect(null); }}><Trash2 size={16} /></button>
+          <button type="button" className={styles.iconButton} aria-label={c.deselect} title={c.deselect} onClick={() => onSelect(null)}><X size={16} /></button>
+        </>}
+      </div>
     </header>
     <nav className={styles.crumbs} aria-label={c.path}>
       {!selected ? <span aria-current="true">{c.page}</span> : crumbs.length ? crumbs.map((layer, index) => <Fragment key={layer.id}>

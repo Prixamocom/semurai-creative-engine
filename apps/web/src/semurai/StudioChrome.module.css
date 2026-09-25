@@ -1,0 +1,59 @@
+/* Studio chrome primitives (StudioButton, StudioButtonGroup, StudioMenu).
+   Every value comes from the --studio-* tokens on the editor root
+   (StudioEditor.module.css .editor). Selectors are two classes deep where
+   they must win over the app-wide bare `button` defaults in styles/primitives.css. */
+.button {
+  display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; gap: 6px;
+  height: var(--studio-control-h); min-width: var(--studio-control-h); padding: 0 var(--studio-space-2);
+  border: 1px solid transparent; border-radius: var(--studio-radius-md); background: transparent; color: var(--studio-text-secondary);
+  font: 500 var(--studio-text-md)/16px var(--studio-font); white-space: nowrap; cursor: pointer;
+  transition: background-color .12s, border-color .12s, color .12s, box-shadow .12s;
+}
+.button svg { flex-shrink: 0; width: 16px; height: 16px; }
+.button.button:hover:not(:disabled) { background: var(--studio-hover); border-color: transparent; color: var(--studio-text); }
+.button.button:active:not(:disabled) { transform: none; background: var(--studio-active); }
+.button.button:focus-visible { outline: none; box-shadow: var(--studio-focus); }
+.button.button:disabled { opacity: .4; cursor: default; background: transparent; border-color: transparent; color: var(--studio-text-secondary); }
+.button.button[aria-pressed=true] { border-color: transparent; background: var(--studio-active); color: var(--studio-text); }
+.icon.icon { width: var(--studio-control-h); padding: 0; }
+
+.secondary.secondary { border-color: var(--studio-border); background: var(--studio-surface-raised); color: var(--studio-text); }
+.secondary.secondary:hover:not(:disabled) { border-color: var(--studio-border-strong); background: var(--studio-surface-raised); }
+.secondary.secondary:disabled { border-color: var(--studio-border); background: var(--studio-surface-raised); color: var(--studio-text); }
+.primary.primary { border-color: var(--studio-primary); background: var(--studio-primary); color: var(--studio-on-primary); }
+.primary.primary:hover:not(:disabled) { border-color: var(--studio-primary-hover); background: var(--studio-primary-hover); color: var(--studio-on-primary); }
+.primary.primary:disabled { border-color: var(--studio-primary); background: var(--studio-primary); color: var(--studio-on-primary); }
+.danger.danger { color: var(--studio-danger); }
+.danger.danger:hover:not(:disabled) { background: var(--studio-danger-soft); color: var(--studio-danger); }
+
+/* Segmented group: a 28px track with 24px segments. */
+.group { display: inline-flex; flex-shrink: 0; align-items: center; gap: 2px; height: var(--studio-control-h); padding: 2px; border-radius: var(--studio-radius-lg); background: var(--studio-track); }
+.group .button { height: 24px; min-width: 24px; padding: 0 var(--studio-space-2); border-radius: var(--studio-radius-md); }
+.group .icon.icon { width: 24px; padding: 0; }
+.group .button.button[aria-pressed=true] { background: var(--studio-surface-raised); color: var(--studio-text); box-shadow: var(--studio-shadow-xs); }
+.accentGroup .button.button[aria-pressed=true] { color: var(--studio-accent); }
+
+.badge { display: inline-grid; place-items: center; min-width: 16px; height: 16px; padding: 0 var(--studio-space-1); border-radius: 8px; background: var(--studio-accent); color: var(--studio-on-accent); font-size: var(--studio-text-sm); font-weight: 600; line-height: 16px; font-variant-numeric: tabular-nums; }
+
+.menuRoot { position: relative; display: inline-flex; flex-shrink: 0; min-width: 0; }
+.menu {
+  position: absolute; top: calc(100% + var(--studio-space-1)); left: 0; z-index: 40; display: grid; gap: 1px;
+  width: max-content; min-width: 200px; max-width: min(320px, calc(100vw - 16px)); max-height: min(420px, 70vh); overflow: auto;
+  padding: var(--studio-space-1); border: 1px solid var(--studio-border); border-radius: var(--studio-radius-lg);
+  background: var(--studio-surface-raised); box-shadow: var(--studio-shadow-md); color: var(--studio-text);
+}
+.menu[data-align=end] { left: auto; right: 0; }
+.item {
+  display: flex; align-items: center; gap: var(--studio-space-2); width: 100%; height: var(--studio-control-h); padding: 0 var(--studio-space-2);
+  border: 0; border-radius: var(--studio-radius-md); background: transparent; color: var(--studio-text);
+  font: 400 var(--studio-text-lg)/16px var(--studio-font); text-align: left; white-space: nowrap; cursor: pointer;
+}
+.item svg { flex-shrink: 0; width: 16px; height: 16px; color: var(--studio-text-secondary); }
+.item.item:hover:not(:disabled), .item.item:focus-visible { outline: none; background: var(--studio-hover); }
+.item.item:disabled { opacity: .4; cursor: default; background: transparent; color: var(--studio-text); }
+.itemLabel { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.itemHint { color: var(--studio-text-tertiary); font: inherit; font-size: var(--studio-text-sm); }
+.item .itemCheck { color: var(--studio-accent); visibility: hidden; }
+.item .itemCheck[data-checked] { visibility: visible; }
+.itemDanger, .itemDanger svg { color: var(--studio-danger); }
+.separator { height: 1px; margin: var(--studio-space-1) 0; background: var(--studio-border); }

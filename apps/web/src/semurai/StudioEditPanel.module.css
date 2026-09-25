@@ -28,7 +28,10 @@
 .layers { flex-shrink: 0; border-top: 1px solid var(--studio-border); }
 .layersHead { display: flex; align-items: center; justify-content: flex-start; gap: var(--studio-space-1); width: 100%; height: 32px; padding: 0 var(--studio-space-3); border: 0; background: transparent; color: var(--studio-text-tertiary); font-size: var(--studio-text-sm); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
 .layersHead:hover { color: var(--studio-text); }
-.tree { height: 200px; min-height: 72px; max-height: 60vh; overflow: auto; resize: vertical; padding: 0 var(--studio-space-2) var(--studio-space-2); }
+.tree { max-height: 240px; min-height: 40px; overflow: auto; resize: vertical; padding: 0 var(--studio-space-2) var(--studio-space-2); }
+/* Sized to its rows up to 240px; once the user drags the resize handle the
+   height is theirs, up to the same 60vh cap as before. */
+.tree[data-resized] { max-height: 60vh; }
 .treeEmpty { margin: 0; padding: var(--studio-space-2) var(--studio-space-1); color: var(--studio-text-tertiary); }
 .node { display: flex; align-items: center; gap: var(--studio-space-1); height: 24px; padding-right: var(--studio-space-2); border-radius: var(--studio-radius-sm); color: var(--studio-text-secondary); cursor: default; user-select: none; }
 .node:hover { background: var(--studio-hover); color: var(--studio-text); }
@@ -64,6 +67,8 @@
 .fieldIcon { display: grid; flex-shrink: 0; place-items: center; color: var(--studio-text-tertiary); }
 .fieldInput { flex: 1 1 32px; width: 100%; min-width: 0; height: 100%; padding: 0; border: 0; outline: 0; background: transparent; color: var(--studio-text); font: inherit; font-size: var(--studio-text-lg); font-variant-numeric: tabular-nums; text-overflow: ellipsis; }
 .fieldInput::placeholder { color: var(--studio-text-disabled); }
+/* The field shows focus; the input inside it stays a borderless, transparent text run. */
+.panel .fieldInput:focus, .panel .fieldInput:focus-visible { border: 0; outline: 0; background: transparent; box-shadow: none; }
 select.fieldInput { appearance: none; padding-right: 16px; cursor: pointer; }
 .fieldChevron { position: absolute; right: var(--studio-space-2); color: var(--studio-text-tertiary); pointer-events: none; }
 .fieldError { margin: var(--studio-space-1) 0 0; color: var(--studio-danger); font-size: var(--studio-text-sm); line-height: 14px; }

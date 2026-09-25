@@ -17,6 +17,7 @@ export function StudioLayerTree({ layers, selectedId, open, copy, onOpenChange, 
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(layers.map(layer => layer.id)));
   const [focusId, setFocusId] = useState<string | null>(null);
+  const [resized, setResized] = useState(false);
   const tree = useRef<HTMLDivElement>(null);
   const seeded = useRef(layers.length > 0);
   useEffect(() => { if (!seeded.current && layers.length) { seeded.current = true; setExpanded(new Set(layers.map(layer => layer.id))); } }, [layers]);
@@ -63,7 +64,12 @@ export function StudioLayerTree({ layers, selectedId, open, copy, onOpenChange, 
     <button type="button" className={styles.layersHead} aria-expanded={open} aria-controls="studio-layer-tree" onClick={() => onOpenChange(!open)}>
       {open ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />}<span>{copy.layers}</span>
     </button>
-    {open && <div id="studio-layer-tree" ref={tree} className={styles.tree} role="tree" aria-label={copy.layers} onKeyDown={keyDown}>
+    {open && <div id="studio-layer-tree" ref={tree} className={styles.tree} role="tree" aria-label={copy.layers} onKeyDown={keyDown} data-resized={resized || undefined}
+      onPointerDown={event => {
+        // A press on the native resize corner lifts the 240px content cap so the drag can grow the tree.
+        const box = event.currentTarget.getBoundingClientRect();
+        if (!resized && event.clientX > box.right - 16 && event.clientY > box.bottom - 16) setResized(true);
+      }}>
       {!rows.length && <p className={styles.treeEmpty}>{copy.layersEmpty}</p>}
       {rows.map(({ layer, level }, index) => {
         const branch = layer.children.length > 0; const isOpen = branch && expanded.has(layer.id);

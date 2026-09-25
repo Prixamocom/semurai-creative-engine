@@ -1,16 +1,21 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { Button } from '@open-design/components';
-import { Check, MessageSquare, Sparkles, X } from 'lucide-react';
+import { MessageSquare, MousePointer2, Scan, Sparkles, X } from 'lucide-react';
 import { reviewCopy, type ReviewTarget, type StudioComment } from './studio-review';
 import styles from './StudioReview.module.css';
 import { StudioCommentThread } from './StudioCommentThread';
+import { StudioButton, StudioButtonGroup } from './StudioButton';
 
-export function StudioReview({ locale, file, version, target, disabled, api, onAsk, onSelect, onClose, comments, onCommentsChange, resolved, onResolvedChange, activeCommentId }: {
+/**
+ * Comments panel shown in the Studio side panel while the Comment tool is
+ * active. The Element / Area toggle picks how the preview selects a target.
+ */
+export function StudioReview({ locale, file, version, target, disabled, api, onAsk, onSelect, comments, onCommentsChange, resolved, onResolvedChange, activeCommentId, area = false, onAreaChange }: {
   locale: 'pl' | 'en' | 'de'; file: string; version: number; target: ReviewTarget | null; disabled: boolean;
   api: (path: string, method?: string, body?: unknown) => Promise<{ data: StudioComment[] }>;
   comments: StudioComment[]; onCommentsChange: (comments: StudioComment[]) => void; resolved: boolean; onResolvedChange: (value: boolean) => void; activeCommentId: string | null;
-  onAsk: (target: ReviewTarget, text: string) => void; onSelect: (target: ReviewTarget | null, id?: string) => void; onClose: () => void;
+  onAsk: (target: ReviewTarget, text: string) => void; onSelect: (target: ReviewTarget | null, id?: string) => void; onClose?: () => void;
+  area?: boolean; onAreaChange?: (area: boolean) => void;
 }) {
   const c = reviewCopy[locale];
   const [text, setText] = useState('');
@@ -29,18 +34,24 @@ export function StudioReview({ locale, file, version, target, disabled, api, onA
   const selection = target ?? { file, version, label: c.project, selector: 'body', text: '' };
   const numbered = comments.filter(item => item.target.file === file).map((item, index) => ({ ...item, number: index + 1 }));
   const visible = numbered.filter(item => resolved || !item.resolved);
-  return <aside ref={panel} className={styles.panel} aria-label={c.comments}>
-    <header><h3><MessageSquare size={16} />{c.comments} <small>({numbered.length})</small></h3><Button title={c.close} onClick={onClose}><X size={16} /></Button></header>
+  return <section ref={panel} className={styles.panel} aria-label={c.comments}>
+    {onAreaChange && <StudioButtonGroup label={c.selectBy} className={styles.modes}>
+      <StudioButton aria-pressed={!area} title={c.select} onClick={() => onAreaChange(false)}><MousePointer2 size={16} />{c.element}</StudioButton>
+      <StudioButton aria-pressed={area} title={c.area} onClick={() => onAreaChange(true)}><Scan size={16} />{c.areaShort}</StudioButton>
+    </StudioButtonGroup>}
     <p className={styles.hint}>{c.hint}</p>
-    <div className={styles.selection}><span>{selection.label}</span><small>{selection.file}{selection.slideIndex === undefined ? '' : ` · ${selection.slideIndex + 1}`}</small>{target && <Button title={c.remove} onClick={() => onSelect(null)}><X size={14} /></Button>}</div>
+    <div className={styles.selection}><span>{selection.label}</span><small>{selection.file}{selection.slideIndex === undefined ? '' : ` · ${selection.slideIndex + 1}`}</small>{target && <StudioButton icon className={styles.selectionClear} title={c.remove} aria-label={c.remove} onClick={() => onSelect(null)}><X size={16} /></StudioButton>}</div>
     {selection.version !== version && <p role="status" className={styles.hint}>{c.stale}</p>}
-    <textarea aria-label={c.placeholder} placeholder={c.placeholder} maxLength={4000} value={text} onChange={event => setText(event.target.value)} />
-    <div className={styles.actions}><Button disabled={disabled || busy || !text.trim()} onClick={() => { requestId.current ??= crypto.randomUUID(); void mutate({ action: 'create', id: requestId.current, text: text.trim(), target: selection }); }}><MessageSquare size={14} />{c.add}</Button><Button disabled={disabled || busy || !text.trim()} onClick={() => { onAsk(selection, text); setText(''); }}><Sparkles size={14} />{c.ask}</Button></div>
-    {error && <p role="alert">{error}</p>}
+    <textarea className={styles.input} aria-label={c.placeholder} placeholder={c.placeholder} maxLength={4000} value={text} onChange={event => setText(event.target.value)} />
+    <div className={styles.actions}>
+      <StudioButton variant="secondary" disabled={disabled || busy || !text.trim()} onClick={() => { requestId.current ??= crypto.randomUUID(); void mutate({ action: 'create', id: requestId.current, text: text.trim(), target: selection }); }}><MessageSquare size={16} />{c.add}</StudioButton>
+      <StudioButton disabled={disabled || busy || !text.trim()} onClick={() => { onAsk(selection, text); setText(''); }}><Sparkles size={16} />{c.ask}</StudioButton>
+    </div>
+    {error && <p role="alert" className={styles.error}>{error}</p>}
     <label className={styles.filter}><input type="checkbox" checked={resolved} onChange={event => onResolvedChange(event.target.checked)} />{c.resolved}</label>
     <div className={styles.list}>{!visible.length && <p className={styles.hint}>{c.empty}</p>}{visible.map(item => <article key={item.id} data-comment-id={item.id} tabIndex={-1} className={(item.resolved ? styles.resolved : '') + (item.id === activeCommentId ? ' ' + styles.selected : '')}>
-      <Button className={styles.anchor} title={item.target.label} onClick={() => onSelect(item.target, item.id)}><span>{item.number}</span>{item.target.label}</Button>
+      <button type="button" className={styles.anchor} title={item.target.label} onClick={() => onSelect(item.target, item.id)}><span className={styles.number}>{item.number}</span><span className={styles.anchorLabel}>{item.target.label}</span></button>
       <StudioCommentThread comment={item} locale={locale} disabled={disabled || busy} api={api} onChange={onCommentsChange} onAsk={text => onAsk(item.target, text)} />
     </article>)}</div>
-  </aside>;
+  </section>;
 }
