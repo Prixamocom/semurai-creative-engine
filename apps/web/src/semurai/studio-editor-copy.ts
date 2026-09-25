@@ -46,7 +46,57 @@ export const studioEditorCopy = {
     sheet: 'Stylesheet', currentVersion: 'Aktuell', exportMenu: 'Exportoptionen' },
 };
 
-/** Copy for the docked Edit panel (StudioEditPanel and its field primitives). */
+/** PNG export: menu items, pick mode, toasts and errors. `{scale}` and `{name}` are filled in by the editor. */
+export const studioCaptureCopy = {
+  pl: { page: 'PNG: cała strona', slide: 'PNG: bieżący slajd', frame: 'PNG: bieżąca klatka', pick: 'PNG: wybierz element', element: 'Eksportuj element jako PNG',
+    pickHint: 'Kliknij element do eksportu · Esc anuluje', pickCancel: 'Anuluj', capturing: 'Tworzę obraz PNG…', saved: 'Pobrano {name}',
+    scaled: 'Obraz był za duży, więc zapisano go w skali {scale}× zamiast 2×.', copy: 'Kopiuj do schowka', copied: 'Skopiowano obraz', dismiss: 'Zamknij powiadomienie',
+    partPage: 'strona', partSlide: 'slajd', partFrame: 'klatka', partElement: 'element',
+    unavailable: 'Nie udało się przygotować obrazu. Odśwież podgląd i spróbuj ponownie.', notFound: 'Nie znaleziono tego elementu w podglądzie. Zaznacz go ponownie.',
+    empty: 'Ten element nie ma widocznej powierzchni do eksportu.', emptyRender: 'Przeglądarka zwróciła pusty obraz. Spróbuj ponownie albo użyj Chrome, Edge lub Firefox.',
+    tainted: 'Ta przeglądarka (np. Safari) blokuje zapis obrazu z podglądu. Użyj Chrome, Edge lub Firefox.', timeout: 'Tworzenie obrazu trwało zbyt długo. Spróbuj wyeksportować mniejszy element.',
+    failed: 'Nie udało się utworzyć obrazu PNG. Spróbuj ponownie.', clipboardUnsupported: 'Ta przeglądarka nie obsługuje kopiowania obrazów. Użyj pobranego pliku.',
+    clipboardDenied: 'Nie udało się skopiować obrazu. Przeglądarka nie pozwoliła na dostęp do schowka.' },
+  en: { page: 'PNG: whole page', slide: 'PNG: current slide', frame: 'PNG: current frame', pick: 'PNG: pick an element', element: 'Export element as PNG',
+    pickHint: 'Click an element to export · Esc cancels', pickCancel: 'Cancel', capturing: 'Creating PNG image…', saved: 'Downloaded {name}',
+    scaled: 'The image was too large, so it was saved at {scale}× instead of 2×.', copy: 'Copy to clipboard', copied: 'Image copied', dismiss: 'Dismiss notification',
+    partPage: 'page', partSlide: 'slide', partFrame: 'frame', partElement: 'element',
+    unavailable: 'The image could not be prepared. Reload the preview and try again.', notFound: 'This element was not found in the preview. Select it again.',
+    empty: 'This element has no visible area to export.', emptyRender: 'The browser returned an empty image. Try again or use Chrome, Edge or Firefox.',
+    tainted: 'This browser (for example Safari) blocks saving an image of the preview. Use Chrome, Edge or Firefox.', timeout: 'Creating the image took too long. Try exporting a smaller element.',
+    failed: 'The PNG image could not be created. Please try again.', clipboardUnsupported: 'This browser cannot copy images. Use the downloaded file.',
+    clipboardDenied: 'The image could not be copied. The browser denied clipboard access.' },
+  de: { page: 'PNG: ganze Seite', slide: 'PNG: aktuelle Folie', frame: 'PNG: aktuelles Bild', pick: 'PNG: Element wählen', element: 'Element als PNG exportieren',
+    pickHint: 'Klicke auf ein Element zum Exportieren · Esc bricht ab', pickCancel: 'Abbrechen', capturing: 'PNG-Bild wird erstellt…', saved: '{name} heruntergeladen',
+    scaled: 'Das Bild war zu groß und wurde mit {scale}× statt 2× gespeichert.', copy: 'In die Zwischenablage kopieren', copied: 'Bild kopiert', dismiss: 'Hinweis schließen',
+    partPage: 'seite', partSlide: 'folie', partFrame: 'bild', partElement: 'element',
+    unavailable: 'Das Bild konnte nicht vorbereitet werden. Lade die Vorschau neu und versuche es erneut.', notFound: 'Dieses Element wurde in der Vorschau nicht gefunden. Wähle es erneut aus.',
+    empty: 'Dieses Element hat keine sichtbare Fläche zum Exportieren.', emptyRender: 'Der Browser hat ein leeres Bild geliefert. Versuche es erneut oder nutze Chrome, Edge oder Firefox.',
+    tainted: 'Dieser Browser (z. B. Safari) blockiert das Speichern eines Vorschaubilds. Nutze Chrome, Edge oder Firefox.', timeout: 'Das Erstellen des Bildes hat zu lange gedauert. Exportiere ein kleineres Element.',
+    failed: 'Das PNG-Bild konnte nicht erstellt werden. Bitte erneut versuchen.', clipboardUnsupported: 'Dieser Browser kann keine Bilder kopieren. Nutze die heruntergeladene Datei.',
+    clipboardDenied: 'Das Bild konnte nicht kopiert werden. Der Browser hat den Zugriff auf die Zwischenablage verweigert.' },
+};
+
+/** Studio UI theme choice in the panel's overflow menu. */
+export const studioThemeCopy = {
+  pl: { theme: 'Motyw', light: 'Jasny', dark: 'Ciemny', system: 'Systemowy' },
+  en: { theme: 'Theme', light: 'Light', dark: 'Dark', system: 'System' },
+  de: { theme: 'Design', light: 'Hell', dark: 'Dunkel', system: 'System' },
+};
+
+/** Version history drawer, version preview banner and the restore confirmation. `{n}` is the version number. */
+export const studioHistoryCopy = {
+  pl: { ai: 'AI', manual: 'Ręczna edycja', restore: 'Przywrócona', preview: 'Podgląd wersji {n}', previewing: 'Podgląd', closePreview: 'Zamknij podgląd', restoreAction: 'Przywróć',
+    confirmTitle: 'Przywrócić wersję {n}?', confirmBody: 'Treść tej wersji zostanie zapisana jako nowa wersja projektu. Obecna wersja pozostanie w historii.', confirmCancel: 'Anuluj', confirmRestore: 'Przywróć wersję',
+    empty: 'Zapisane wersje pojawią się tutaj.', unsaved: 'Zapisz lub cofnij zmiany, aby przywrócić wersję.', loadError: 'Nie udało się wczytać tej wersji. Spróbuj ponownie.', readOnly: 'Tylko do odczytu' },
+  en: { ai: 'AI', manual: 'Manual edit', restore: 'Restored', preview: 'Previewing version {n}', previewing: 'Preview', closePreview: 'Close preview', restoreAction: 'Restore',
+    confirmTitle: 'Restore version {n}?', confirmBody: 'This version will be saved as a new version of the project. The current version stays in the history.', confirmCancel: 'Cancel', confirmRestore: 'Restore version',
+    empty: 'Saved versions will appear here.', unsaved: 'Save or undo your changes to restore a version.', loadError: 'This version could not be loaded. Please try again.', readOnly: 'Read only' },
+  de: { ai: 'KI', manual: 'Manuelle Bearbeitung', restore: 'Wiederhergestellt', preview: 'Vorschau von Version {n}', previewing: 'Vorschau', closePreview: 'Vorschau schließen', restoreAction: 'Wiederherstellen',
+    confirmTitle: 'Version {n} wiederherstellen?', confirmBody: 'Diese Version wird als neue Projektversion gespeichert. Die aktuelle Version bleibt im Verlauf.', confirmCancel: 'Abbrechen', confirmRestore: 'Version wiederherstellen',
+    empty: 'Gespeicherte Versionen erscheinen hier.', unsaved: 'Speichere oder verwirf deine Änderungen, um eine Version wiederherzustellen.', loadError: 'Diese Version konnte nicht geladen werden. Bitte erneut versuchen.', readOnly: 'Schreibgeschützt' },
+};
+
 /** "<n> files" with the grammatical plural of each locale (Polish: plik / pliki / plików). */
 export function studioFileCount(locale: keyof typeof studioEditorCopy, count: number): string {
   if (locale === 'pl') {
@@ -57,6 +107,7 @@ export function studioFileCount(locale: keyof typeof studioEditorCopy, count: nu
   return count + (count === 1 ? ' file' : ' files');
 }
 
+/** Copy for the docked Edit panel (StudioEditPanel and its field primitives). */
 export const studioEditPanelCopy = {
   pl: { title: 'Edycja', properties: 'Właściwości', modes: 'Tryb edycji', simple: 'Proste', pro: 'Pro', code: 'Kod', layers: 'Warstwy', layersEmpty: 'Warstwy pojawią się po wczytaniu podglądu.', expand: 'Rozwiń', collapse: 'Zwiń',
     parent: 'Zaznacz element nadrzędny', remove: 'Usuń element', deselect: 'Odznacz', path: 'Ścieżka elementu', page: 'Strona', pageHint: 'Kliknij element w podglądzie lub na liście warstw, aby go edytować. Zmiany widać od razu, a Zapisz tworzy nową wersję.',

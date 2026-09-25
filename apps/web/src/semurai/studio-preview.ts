@@ -4,6 +4,7 @@ import { DECK_SKELETON_HTML } from '@open-design/contracts';
 import { findRealTagEnd, HTML_TAG_PATTERNS } from '@open-design/contracts/runtime/html-injection-points';
 import { annotateManualEditSourcePaths, annotateMissingOdIds, buildSrcdoc } from '../runtime/srcdoc';
 import { STUDIO_VIDEO_BRIDGE } from './studio-video';
+import { STUDIO_CAPTURE_BRIDGE } from './studio-capture-bridge';
 
 export const STUDIO_ARTIFACT_CSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'";
 
@@ -63,7 +64,8 @@ export function studioPreviewSource(source: string, slide = 0, edit = false, dec
     chrome.textContent = `[data-od-edit-guides-layer]{--selected:${ACCENT};--accent:${ACCENT};--amber:${ACCENT};--accent-contrast:#fff}[data-od-edit-guides-layer] .od-edit-guide-measure{color:#fff;background:${ACCENT}}[data-od-edit-guides-layer] .od-edit-guide-box{border-color:${ACCENT}!important}[data-od-edit-guides-layer] .od-edit-guide-handle{border-color:${ACCENT}!important;background:#fff}`;
     parsed.head.appendChild(chrome);
   }
-  if (markers) { const bridge = parsed.createElement('script'); bridge.textContent = STUDIO_COMMENT_BRIDGE; parsed.body.appendChild(bridge); }
+  // The live preview also carries the PNG capture bridge (studio-capture-bridge.ts).
+  if (markers) for (const code of [STUDIO_COMMENT_BRIDGE, STUDIO_CAPTURE_BRIDGE]) { const bridge = parsed.createElement('script'); bridge.textContent = code; parsed.body.appendChild(bridge); }
   const prepared = buildSrcdoc('<!doctype html>\n' + parsed.documentElement.outerHTML, {
     deck, initialSlideIndex: slide, hideDeckChrome: true, editBridge: edit, commentBridge: annotate, selectionBridge: markers, freezeMotion: deck && !edit,
   });

@@ -82,6 +82,11 @@ export function StudioMenuItem({ icon, hint, checked, danger = false, disabled =
   </button>;
 }
 
+/** Labelled set of menu items, e.g. the theme choice in the overflow menu. */
+export function StudioMenuGroup({ label, children }: { label: string; children: ReactNode }) {
+  return <div role="group" aria-label={label} className={styles.menuGroup}><div className={styles.menuGroupLabel} aria-hidden="true">{label}</div>{children}</div>;
+}
+
 export function StudioMenuSeparator() {
   return <div role="separator" className={styles.separator} />;
 }

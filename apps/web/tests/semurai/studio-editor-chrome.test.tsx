@@ -206,10 +206,10 @@ describe('Studio top bar', () => {
     await waitFor(() => expect(screen.getByText('Saved')).toBeTruthy());
   });
 
-  it('keeps the export menu with HTML, print and saved exports, and no footer chrome', async () => {
+  it('keeps the export menu with HTML, PNG, print and saved exports, and no footer chrome', async () => {
     await open();
     const exportMenu = menu('Export');
-    expect(within(exportMenu).getAllByRole('menuitem').map(item => item.textContent)).toEqual(['HTML + CSS', 'Print / PDF', 'Saved exports']);
+    expect(within(exportMenu).getAllByRole('menuitem').map(item => item.textContent)).toEqual(['HTML + CSS', 'PNG: whole page', 'PNG: pick an element', 'Print / PDF', 'Saved exports']);
     fireEvent.click(within(exportMenu).getByRole('menuitem', { name: 'Saved exports' }));
     expect(screen.getByRole('complementary', { name: 'Saved exports' })).toBeTruthy();
     expect(document.querySelector('footer')).toBeNull();

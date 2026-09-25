@@ -2,11 +2,11 @@ import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from '
 import {
   AlignCenter, AlignCenterHorizontal, AlignEndHorizontal, AlignHorizontalJustifyCenter, AlignHorizontalJustifyEnd, AlignHorizontalJustifyStart,
   AlignHorizontalSpaceBetween, AlignJustify, AlignLeft, AlignRight, AlignStartHorizontal, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChevronRight,
-  Code2, CornerLeftUp, ImageUp, StretchHorizontal, Trash2, X,
+  Code2, CornerLeftUp, ImageDown, ImageUp, StretchHorizontal, Trash2, X,
 } from 'lucide-react';
 import { readManualEditFields, readManualEditOuterHtml, readManualEditStyles } from '../edit-mode/source-patches';
 import type { ManualEditPatch, ManualEditStyles, ManualEditTarget } from '../edit-mode/types';
-import { studioEditPanelCopy, type StudioEditPanelCopy } from './studio-editor-copy';
+import { studioCaptureCopy, studioEditPanelCopy, type StudioEditPanelCopy } from './studio-editor-copy';
 import { STUDIO_BORDER_STYLES, STUDIO_FONT_OPTIONS, STUDIO_FONT_WEIGHTS, studioSideKeys, studioStyleCommit, studioStyleDisplay, type StudioStyleKey } from './studio-edit-values';
 import { studioLayerPath, studioLayerTree } from './studio-layers';
 import { StudioColorField, StudioField, StudioQuadField, StudioSegmented, StudioSelectField } from './StudioFields';
@@ -176,13 +176,14 @@ function PageProperties({ c, source, disabled, onPatch }: { c: StudioEditPanelCo
  * only the changed property (Enter, blur, segment click or arrow step); text
  * commits on blur or Ctrl/Cmd+Enter. The Studio header Save stays the only
  * version save, and all commits run through the editor's undoable patch().
- * `onInsertImage` adds the "Add image" menu to the panel header (not for decks).
+ * `onInsertImage` adds the "Add image" menu to the panel header (not for decks);
+ * `onExportPng` adds "Export element as PNG" for the selected element.
  */
-export function StudioEditPanel({ locale, source, targets, selected, mode, layersOpen, disabled, onMode, onLayersOpen, onSelect, onPatch, onPickImage, onInsertImage }: {
+export function StudioEditPanel({ locale, source, targets, selected, mode, layersOpen, disabled, onMode, onLayersOpen, onSelect, onPatch, onPickImage, onInsertImage, onExportPng, exportBusy = false }: {
   locale: keyof typeof studioEditPanelCopy; source: string; targets: ManualEditTarget[]; selected: ManualEditTarget | null; mode: StudioInspectorMode;
   layersOpen: boolean; disabled: boolean; onMode: (mode: StudioInspectorMode) => void; onLayersOpen: (open: boolean) => void;
   onSelect: (target: ManualEditTarget | null) => void; onPatch: (patch: ManualEditPatch) => boolean; onPickImage: () => void;
-  onInsertImage?: (source: 'attach' | 'library') => void;
+  onInsertImage?: (source: 'attach' | 'library') => void; onExportPng?: () => void; exportBusy?: boolean;
 }) {
   const c = studioEditPanelCopy[locale];
   const layers = useMemo(() => studioLayerTree(source, targets), [source, targets]);
@@ -203,6 +204,7 @@ export function StudioEditPanel({ locale, source, targets, selected, mode, layer
       <div className={styles.headActions}>
         {onInsertImage && <StudioImageMenu locale={locale} disabled={disabled} onSelect={onInsertImage} />}
         {selected && <>
+          {onExportPng && <button type="button" className={styles.iconButton} aria-label={studioCaptureCopy[locale].element} title={studioCaptureCopy[locale].element} disabled={exportBusy} onClick={onExportPng}><ImageDown size={16} /></button>}
           <button type="button" className={styles.iconButton} aria-label={c.parent} title={c.parent} disabled={!parent} onClick={() => parent && onSelect(parent)}><CornerLeftUp size={16} /></button>
           <button type="button" className={styles.iconButton} aria-label={c.remove} title={c.remove} disabled={disabled} onClick={() => { if (onPatch({ kind: 'remove-element', id: selected.id })) onSelect(null); }}><Trash2 size={16} /></button>
           <button type="button" className={styles.iconButton} aria-label={c.deselect} title={c.deselect} onClick={() => onSelect(null)}><X size={16} /></button>

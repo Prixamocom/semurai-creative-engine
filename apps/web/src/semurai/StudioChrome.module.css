@@ -57,3 +57,24 @@
 .item .itemCheck[data-checked] { visibility: visible; }
 .itemDanger, .itemDanger svg { color: var(--studio-danger); }
 .separator { height: 1px; margin: var(--studio-space-1) 0; background: var(--studio-border); }
+.menuGroup { display: grid; gap: 1px; }
+.menuGroupLabel { padding: var(--studio-space-1) var(--studio-space-2) 2px; color: var(--studio-text-tertiary); font-size: var(--studio-text-sm); font-weight: 600; line-height: 16px; }
+
+/* Toast (StudioToast): bottom center of the Studio, above the canvas. */
+.toast {
+  position: fixed; bottom: var(--studio-space-5); left: 50%; z-index: 60; display: flex; align-items: center; gap: var(--studio-space-2);
+  max-width: min(560px, calc(100vw - 32px)); padding: var(--studio-space-2) var(--studio-space-2) var(--studio-space-2) var(--studio-space-4);
+  border: 1px solid var(--studio-border); border-radius: var(--studio-radius-lg); background: var(--studio-surface-raised); color: var(--studio-text);
+  box-shadow: var(--studio-shadow-lg); font: var(--studio-text-lg)/18px var(--studio-font); transform: translateX(-50%);
+}
+.toast[data-tone=error] { border-color: color-mix(in srgb, var(--studio-danger) 45%, var(--studio-border)); }
+.toastText { display: grid; flex: 1; min-width: 0; }
+.toastText span, .toastText small { overflow: hidden; text-overflow: ellipsis; }
+.toastText small { color: var(--studio-text-secondary); font-size: var(--studio-text-md); white-space: nowrap; }
+
+/* Confirmation dialog (StudioConfirm). The Dialog backdrop and shell come from
+   @open-design/components; the panel itself follows the Studio tokens. */
+.confirm.confirm { width: min(420px, calc(100vw - 32px)); gap: var(--studio-space-3); padding: var(--studio-space-5); border: 1px solid var(--studio-border); border-radius: var(--studio-radius-xl); background: var(--studio-surface-raised); color: var(--studio-text); box-shadow: var(--studio-shadow-lg); font-family: var(--studio-font); }
+.confirm h2 { margin: 0; font-size: var(--studio-text-xl); font-weight: 600; line-height: 22px; }
+.confirm p { margin: 0; color: var(--studio-text-secondary); font-size: var(--studio-text-lg); line-height: 20px; }
+.confirm footer { display: flex; justify-content: flex-end; gap: var(--studio-space-2); margin-top: var(--studio-space-2); }

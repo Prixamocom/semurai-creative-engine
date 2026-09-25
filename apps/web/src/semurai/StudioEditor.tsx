@@ -2,17 +2,21 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
-  Archive, ArrowLeft, ArrowUp, ChevronDown, ChevronUp, Code2, Copy, Download, Eye, FileCode2, Film, History, LogOut, Maximize, Maximize2, MessageSquare, Monitor,
-  MoreHorizontal, MousePointer2, PanelLeftClose, PanelLeftOpen, Pencil, Play, Presentation, Printer, RotateCcw, RotateCw, Smartphone, Sparkles, Tablet, Trash2, X, ZoomIn, ZoomOut,
+  Archive, ArrowLeft, ArrowUp, ChevronDown, ChevronUp, Code2, Copy, Crosshair, Download, Eye, FileCode2, Film, History, ImageDown, Loader2, LogOut, Maximize, Maximize2, MessageSquare, Monitor,
+  Moon, MoreHorizontal, MousePointer2, PanelLeftClose, PanelLeftOpen, Pencil, Play, Presentation, Printer, RotateCcw, RotateCw, Smartphone, Sparkles, Sun, SunMoon, Tablet, Trash2, X, ZoomIn, ZoomOut,
 } from 'lucide-react';
 import { DeckThumbnailRail } from '../components/DeckThumbnailRail';
 import { applyManualEditPatch } from '../edit-mode/source-patches';
 import type { ManualEditPatch, ManualEditTarget } from '../edit-mode/types';
 import { safeStudioReturn, studioSessionPath, type StudioContext } from './studio-context';
 import { emptyStudioPreviewScroll, nextStudioPreviewScroll, STUDIO_PREVIEW_RELOAD_WAIT_MS, STUDIO_PREVIEW_SCROLL_SETTLE_MS, studioPreviewSource, studioSlideCount } from './studio-preview';
-import { studioEditorCopy, studioFileCount } from './studio-editor-copy';
+import { studioCaptureCopy, studioEditorCopy, studioFileCount, studioHistoryCopy, studioThemeCopy } from './studio-editor-copy';
 import { STUDIO_ZOOM_STEPS, studioFitZoom, studioZoomShortcut, studioZoomStep } from './studio-zoom';
-import { StudioBadge, StudioButton, StudioButtonGroup, StudioMenu, StudioMenuItem, StudioMenuSeparator } from './StudioButton';
+import { StudioBadge, StudioButton, StudioButtonGroup, StudioMenu, StudioMenuGroup, StudioMenuItem, StudioMenuSeparator } from './StudioButton';
+import { captureStudioPng, copyStudioImage, studioCaptureMessage, studioPngFileName, type StudioCaptureTarget } from './studio-capture';
+import { useStudioTheme, type StudioThemePreference } from './studio-theme';
+import { studioRelativeTime, studioVersionSource, studioVersionSummary, type StudioVersion } from './studio-history';
+import { StudioConfirm, StudioToast } from './StudioFeedback';
 import { changeSlide, replaceStyleBlock, styleBlocks, studioFileSource, replaceStudioFile, type SlideOperation } from './studio-source';
 import { downloadStudioFile, exportStudioDocument } from './studio-export';
 import { StudioChatTurn } from './StudioChatTurn';
@@ -30,7 +34,9 @@ import { readReviewTarget, reviewBrief, reviewCopy, type ReviewTarget, type Stud
 interface StudioDocument { version: 1; kind: string; name: string; html: string; files?: { path: string; content: string }[]; notes: (string | null)[]; brandContextHash?: string }
 interface SavedSource { id: string; version: number; document: StudioDocument; document_hash: string }
 type Job = StudioChatJob;
-interface Version { id: string; version: number; kind: string; created_at: string }
+type Version = StudioVersion;
+interface StudioToastState { id: number; message: string; detail?: string; tone?: 'error'; blob?: Blob }
+const THEMES = [['light', Sun], ['dark', Moon], ['system', SunMoon]] as const;
 interface ProjectExport { id: string; format: 'html' | 'pptx'; version: number; title: string; created_at: string; mime_type: string; size: number; sha256: string }
 /** The global tool group drives the side panel: select = AI chat, comment = comments, edit = Edit panel. */
 type StudioTool = 'select' | 'comment' | 'edit';
@@ -39,6 +45,17 @@ const DEVICES = [[0, 'desktop', Monitor], [768, 'tablet', Tablet], [390, 'mobile
 export function StudioEditor({ context, expired = false, onClose, sessionPath }: { context: StudioContext; expired?: boolean; onClose: () => void; sessionPath?: string }) {
   const c = studioEditorCopy[context.project.uiLocale];
   const r = reviewCopy[context.project.uiLocale];
+  const k = studioCaptureCopy[context.project.uiLocale];
+  const h = studioHistoryCopy[context.project.uiLocale];
+  const t = studioThemeCopy[context.project.uiLocale];
+  const { preference: themePreference, theme, setPreference: setThemePreference } = useStudioTheme();
+  const [picking, setPicking] = useState(false);
+  const pickingRef = useRef(picking); pickingRef.current = picking;
+  const [capturing, setCapturing] = useState(false);
+  const [toast, setToast] = useState<StudioToastState | null>(null);
+  const [versionLoading, setVersionLoading] = useState<string | null>(null);
+  const [confirmRestore, setConfirmRestore] = useState<Version | null>(null);
+  const confirmRef = useRef(confirmRestore); confirmRef.current = confirmRestore;
   const [chatWidth, setChatWidth] = useState(() => { try { return Math.max(280, Math.min(640, Number(localStorage.getItem('semurai-studio-chat-width')) || 390)); } catch { return 390; } });
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [resizing, setResizing] = useState(false);
@@ -82,6 +99,9 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
   const [activeFile, setActiveFile] = useState('index.html');
   const activeFileRef = useRef('index.html');
   const [document, setDocument] = useState<StudioDocument | null>(null);
+  /** A saved version shown read-only in the canvas; the working document and undo stack stay as they are. */
+  const [versionPreview, setVersionPreview] = useState<{ version: Version; document: StudioDocument } | null>(null);
+  const versionPreviewRef = useRef(versionPreview); versionPreviewRef.current = versionPreview;
   const [presentation, setPresentation] = useState<{ document: StudioDocument; slide: number } | null>(null);
   const [saved, setSaved] = useState<SavedSource | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -127,7 +147,10 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
   const active = jobs.find(job => !terminal.has(job.status));
   const dirty = Boolean(document && JSON.stringify(document) !== JSON.stringify(saved?.document));
   const visibleHtml = document ? studioFileSource(document, activeFile) : '';
-  const count = useMemo(() => document && deck ? studioSlideCount(visibleHtml) : 0, [visibleHtml, deck]);
+  // What the canvas shows: the working file, or the same file of a previewed version.
+  const shownHtml = versionPreview ? studioFileSource(versionPreview.document, activeFile) : visibleHtml;
+  const shownNotes = (versionPreview?.document ?? document)?.notes;
+  const count = useMemo(() => document && deck ? studioSlideCount(shownHtml) : 0, [shownHtml, deck]);
   const sheets = useMemo(() => document ? styleBlocks(visibleHtml) : [], [visibleHtml]);
 
   useEffect(() => { try { localStorage.setItem('semurai-studio-chat-width', String(chatWidth)); } catch { /* Storage can be disabled. */ } }, [chatWidth]);
@@ -176,7 +199,7 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
   const fileComments = comments.filter(item => item.target.file === activeFile);
   const markerItems = fileComments.map((item, index) => ({ ...item, number: index + 1, label: r.comments })).filter(item => showResolved || !item.resolved);
   const markersState = useRef({ items: markerItems, enabled: true, selected: activeCommentId });
-  markersState.current = { items: markerItems, enabled: mode === 'preview' && !presenting, selected: activeCommentId };
+  markersState.current = { items: markerItems, enabled: mode === 'preview' && !presenting && !versionPreview, selected: activeCommentId };
   function syncMarkers() {
     frame.current?.contentWindow?.postMessage({ type: 'semurai:comment-markers', ...markersState.current }, '*');
   }
@@ -337,7 +360,7 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
   }, [count]);
   // Deck navigation uses the upstream message protocol; rebuilding srcdoc on
   // every reported slide would reset the runtime and undo the user's navigation.
-  const srcdoc = useMemo(() => document && (!video || videoRuntime) ? studioPreviewSource(visibleHtml, slide, mode === 'edit', deck, false, true, video ? videoRuntime : undefined) : '', [visibleHtml, mode, deck, video, videoRuntime]);
+  const srcdoc = useMemo(() => document && (!video || videoRuntime) ? studioPreviewSource(shownHtml, slide, mode === 'edit', deck, false, true, video ? videoRuntime : undefined) : '', [shownHtml, mode, deck, video, videoRuntime]);
   // The reloaded document reports its initial zero offset before asking for a
   // restore, so the kept position is guarded from the moment srcdoc changes.
   useEffect(() => { previewScrollSettleUntil.current = Date.now() + STUDIO_PREVIEW_RELOAD_WAIT_MS; }, [srcdoc]);
@@ -349,7 +372,61 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
     setSlide(index);
     frame.current?.contentWindow?.postMessage({ type: 'od:slide', action: 'go', index }, '*');
   }
-  const thumbnail = useCallback((index: number) => studioPreviewSource(visibleHtml || '', index, false, true), [visibleHtml]);
+  const thumbnail = useCallback((index: number) => studioPreviewSource(shownHtml || '', index, false, true), [shownHtml]);
+  /** Measure, render and download one PNG of the preview; the toast then offers the clipboard. */
+  async function capturePng(target: StudioCaptureTarget, part = '') {
+    if (capturing) return;
+    setCapturing(true); setError(''); setToast(null);
+    try {
+      const result = await captureStudioPng(frame.current?.contentWindow, target);
+      const name = studioPngFileName(context.project.title, part || result.label || k.partElement);
+      downloadStudioFile(result.blob, 'image/png', name, '.png');
+      setToast({ id: Date.now(), message: k.saved.replace('{name}', name + '.png'), blob: result.blob,
+        detail: result.plan.capped ? k.scaled.replace('{scale}', result.plan.scale.toLocaleString(context.project.uiLocale, { maximumFractionDigits: 2 })) : undefined });
+    } catch (reason) { setError(studioCaptureMessage(reason, k)); }
+    finally { setCapturing(false); }
+  }
+  const captureRef = useRef(capturePng); captureRef.current = capturePng;
+  async function copyPng(blob: Blob) {
+    try { await copyStudioImage(blob); setToast({ id: Date.now(), message: k.copied }); }
+    catch (reason) { setToast({ id: Date.now(), message: studioCaptureMessage(reason, k), tone: 'error', blob }); }
+  }
+  function pickElement(enabled: boolean) {
+    setPicking(enabled);
+    if (enabled) { setToast(null); setError(''); }
+    frame.current?.contentWindow?.postMessage({ type: 'semurai:capture-pick', enabled }, '*');
+  }
+  useEffect(() => {
+    const receive = (event: MessageEvent) => {
+      if (event.source !== frame.current?.contentWindow || !event.data || typeof event.data !== 'object') return;
+      if (event.data.type === 'semurai:capture-pick-cancel') setPicking(false);
+      if (event.data.type === 'semurai:capture-picked' && pickingRef.current) {
+        setPicking(false);
+        const elementId = typeof event.data.elementId === 'string' ? event.data.elementId.slice(0, 240) : '';
+        if (elementId) void captureRef.current({ kind: 'element', elementId }, typeof event.data.label === 'string' ? event.data.label.slice(0, 80) : '');
+      }
+    };
+    window.addEventListener('message', receive); return () => window.removeEventListener('message', receive);
+  }, []);
+  // Pick mode needs the live preview; leaving it (Source view, a version preview) cancels it.
+  useEffect(() => { if (pickingRef.current) pickElement(false); }, [mode, versionPreview]);
+  async function openVersion(version: Version) {
+    setVersionLoading(version.id); setError('');
+    try {
+      const result = (await api('versions/' + version.id)).data as { document?: StudioDocument } | null;
+      if (!result?.document || typeof result.document.html !== 'string') throw new Error(h.loadError);
+      setTool('select'); setView('preview'); setActiveCommentId(null);
+      setVersionPreview({ version, document: result.document });
+    } catch { setError(h.loadError); }
+    finally { setVersionLoading(null); }
+  }
+  function restoreVersion(version: Version) {
+    setConfirmRestore(null);
+    void action(async () => {
+      await api('versions/' + version.id + '/restore', 'POST', { base_version: saved?.version, base_revision: saved?.document_hash });
+      setVersionPreview(null); await refresh(true);
+    });
+  }
   async function saveCurrent(): Promise<SavedSource | null> {
     const current = latest.current;
     if (!current || JSON.stringify(current) === JSON.stringify(baseline.current?.document)) return baseline.current;
@@ -446,6 +523,10 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       const input = event.target instanceof HTMLElement && !!event.target.closest('input,textarea,select,[contenteditable="true"]');
+      // Escape closes the innermost transient state first: pick mode, the restore question, the version preview.
+      if (event.key === 'Escape' && pickingRef.current) { event.preventDefault(); pickElement(false); return; }
+      if (event.key === 'Escape' && confirmRef.current) { event.preventDefault(); setConfirmRestore(null); return; }
+      if (event.key === 'Escape' && versionPreviewRef.current && !input) { setVersionPreview(null); return; }
       // An audience presentation is the fullscreen preview; slide keys drive the deck.
       if (deck && viewport.current && window.document.fullscreenElement === viewport.current) {
         const slideAction = ['ArrowRight', 'PageDown', ' '].includes(event.key) ? 'next' : ['ArrowLeft', 'PageUp'].includes(event.key) ? 'prev' : event.key === 'Home' ? 'first' : event.key === 'End' ? 'last' : null;
@@ -454,7 +535,8 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
       const zoomKey = studioZoomShortcut(event);
       if (zoomKey) { event.preventDefault(); setZoomSetting(zoomKey === 'reset' ? 100 : studioZoomStep(zoomRef.current, zoomKey === 'in' ? 1 : -1)); return; }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); if (!busy && !expired) void action(async () => { await saveCurrent(); }); }
-      if (!input && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); if (!busy) travel(event.shiftKey ? 'redo' : 'undo'); }
+      // Undo would change the hidden working document while a saved version is on screen.
+      if (!input && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); if (!busy && !versionPreviewRef.current) travel(event.shiftKey ? 'redo' : 'undo'); }
       if (event.key === 'Escape' && !input) { setTool('select'); setReviewTarget(null); setShowHistory(false); setShowExports(false); }
     };
     window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key);
@@ -507,23 +589,31 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
     <p className={styles.chatHint}>{c.allChanges}</p>
   </>;
 
-  return <main style={{ '--chat-width': `${chatWidth}px` } as CSSProperties} className={styles.editor + (chatCollapsed ? ' ' + styles.chatCollapsed : '') + (resizing ? ' ' + styles.resizing : '')} data-testid="semurai-studio-editor">
+  return <main style={{ '--chat-width': `${chatWidth}px` } as CSSProperties} className={styles.editor + (chatCollapsed ? ' ' + styles.chatCollapsed : '') + (resizing ? ' ' + styles.resizing : '')} data-testid="semurai-studio-editor" data-studio-theme={theme} lang={context.project.uiLocale}>
     {imagePicker && <StudioImagePicker initialSource={imagePicker.initialSource} target={imagePicker.target} locale={locale} api={api} onClose={() => setImagePicker(null)} onApply={(image, alt, placement) => {
       if (!latest.current || studioFileSource(latest.current, activeFileRef.current) !== imagePicker.source) return false;
       const html = placeStudioImage(studioFileSource(latest.current, activeFileRef.current), { dataUrl: image.dataUrl, alt }, placement, context.project.artifactType === 'email', imagePicker.target?.id);
       if (!html) return false;
       change({ ...latest.current, html }); setSelected(null); setImagePicker(null); return true;
     }} />}
+    {confirmRestore && <StudioConfirm title={h.confirmTitle.replace('{n}', String(confirmRestore.version))} cancel={h.confirmCancel} confirm={h.confirmRestore} busy={busy}
+      onCancel={() => setConfirmRestore(null)} onConfirm={() => restoreVersion(confirmRestore)}>{h.confirmBody}</StudioConfirm>}
+    {toast && <StudioToast key={toast.id} message={toast.message} detail={toast.detail} tone={toast.tone} closeLabel={k.dismiss}
+      action={toast.blob ? k.copy : undefined} onAction={() => { if (toast.blob) void copyPng(toast.blob); }} onClose={() => setToast(null)} />}
     {presentation && <StudioPresenter source={presentation.document.html} notes={presentation.document.notes} initialSlide={presentation.slide} locale={locale} onClose={index => { setPresentation(null); navigateSlide(Math.min(index, Math.max(0, count - 1))); }} />}
 
     <aside id="studio-chat" className={styles.panel + (showChat ? ' ' + styles.panelVisible : '')} aria-label={modeLabel} data-tool={tool}>
       <header className={styles.panelHeader}>
         <a className={styles.backLink} href={safeStudioReturn(context)!} title={c.backToSemurai} aria-label={c.backToSemurai}><ArrowLeft size={16} /></a>
         <div className={styles.panelTitle}><strong title={context.project.title}>{context.project.title}</strong><span>{modeLabel}</span></div>
-        {tool !== 'select' && <StudioButton variant="secondary" className={styles.backToChat} title={c.back} aria-label={c.back} onClick={() => chooseTool('select')}><MessageSquare size={16} /><span>{c.back}</span></StudioButton>}
+        {tool !== 'select' && <StudioButton icon title={c.back} aria-label={c.back} onClick={() => chooseTool('select')}><MessageSquare size={16} /></StudioButton>}
         <StudioButton icon className={styles.desktopOnly} title={c.collapsePanel} aria-label={c.collapsePanel} onClick={() => setChatCollapsed(true)}><PanelLeftClose size={16} /></StudioButton>
         <StudioButton icon className={styles.mobileOnly} title={c.close} aria-label={c.close} onClick={() => setShowChat(false)}><X size={16} /></StudioButton>
         <StudioMenu label={c.more} title={c.more} ariaLabel={c.more} icon align="end" trigger={<MoreHorizontal size={16} />}>
+          <StudioMenuGroup label={t.theme}>
+            {THEMES.map(([value, Icon]) => <StudioMenuItem key={value} icon={<Icon size={16} />} checked={themePreference === value} onSelect={() => setThemePreference(value as StudioThemePreference)}>{t[value]}</StudioMenuItem>)}
+          </StudioMenuGroup>
+          <StudioMenuSeparator />
           <StudioMenuItem danger icon={<LogOut size={16} />} disabled={busy} onSelect={closeSession}>{c.closeSession}</StudioMenuItem>
         </StudioMenu>
       </header>
@@ -532,7 +622,8 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
         target={reviewTarget} disabled={busy || expired} api={api} onAsk={askSelection} onSelect={selectReview} area={reviewArea} onAreaChange={setReviewArea} />}
       {tool === 'edit' && <StudioEditPanel locale={locale} source={visibleHtml} targets={targets} selected={selected} mode={inspectorMode} layersOpen={layersOpen} disabled={busy || expired}
         onMode={setInspectorMode} onLayersOpen={setLayersOpen} onSelect={pick} onPatch={patch} onPickImage={() => { if (document && selected) setImagePicker({ source: visibleHtml, target: selected, initialSource: 'library' }); }}
-        onInsertImage={deck ? undefined : initialSource => { if (document) setImagePicker({ source: visibleHtml, target: selected, initialSource }); }} />}
+        onInsertImage={deck ? undefined : initialSource => { if (document) setImagePicker({ source: visibleHtml, target: selected, initialSource }); }}
+        onExportPng={() => { if (selected) void capturePng({ kind: 'element', elementId: selected.id }); }} exportBusy={capturing || picking} />}
     </aside>
     <div className={styles.resizeHandle} role="separator" aria-orientation="vertical" aria-label={r.resize} aria-controls="studio-chat" aria-valuemin={280} aria-valuemax={640} aria-valuenow={Math.round(chatWidth)} tabIndex={0}
       onDoubleClick={() => setChatWidth(390)} onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); setChatWidth(value => Math.max(280, Math.min(640, value + (event.key === 'ArrowLeft' ? -20 : 20)))); } }}
@@ -551,7 +642,7 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
           </StudioMenu>
           <StudioButtonGroup label={c.view}>
             <StudioButton aria-pressed={view === 'preview'} aria-label={c.preview} title={c.preview} onClick={() => chooseView('preview')}><Eye size={16} /><span className={styles.viewLabel}>{c.preview}</span></StudioButton>
-            <StudioButton aria-pressed={view === 'source'} aria-label={c.source} title={c.source} onClick={() => chooseView('source')}><Code2 size={16} /><span className={styles.viewLabel}>{c.source}</span></StudioButton>
+            <StudioButton aria-pressed={view === 'source'} aria-label={c.source} title={c.source} disabled={!!versionPreview} onClick={() => chooseView('source')}><Code2 size={16} /><span className={styles.viewLabel}>{c.source}</span></StudioButton>
           </StudioButtonGroup>
           <StudioButtonGroup label={c.devices}>
             {DEVICES.map(([width, key, Icon]) => <StudioButton key={key} icon aria-pressed={device === width} title={c[key]} aria-label={c[key]} onClick={() => setDevice(width)}><Icon size={16} /></StudioButton>)}
@@ -559,8 +650,8 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
         </div>
         <div className={styles.barEnd}>
           <span className={styles.saveState} aria-live="polite">{dirty ? c.unsaved : c.saved}</span>
-          <StudioButton icon disabled={!undo.length} title={c.undo} aria-label={c.undo} onClick={() => travel('undo')}><RotateCcw size={16} /></StudioButton>
-          <StudioButton icon disabled={!redo.length} title={c.redo} aria-label={c.redo} onClick={() => travel('redo')}><RotateCw size={16} /></StudioButton>
+          <StudioButton icon disabled={!undo.length || !!versionPreview} title={c.undo} aria-label={c.undo} onClick={() => travel('undo')}><RotateCcw size={16} /></StudioButton>
+          <StudioButton icon disabled={!redo.length || !!versionPreview} title={c.redo} aria-label={c.redo} onClick={() => travel('redo')}><RotateCw size={16} /></StudioButton>
           <StudioMenu label={c.zoom} title={c.zoom} ariaLabel={`${c.zoom}: ${zoom}%`} align="end" disabled={!document || mode === 'source'} triggerClassName={styles.zoomTrigger} trigger={<><span>{zoom}%</span><ChevronDown size={16} /></>}>
             <StudioMenuItem icon={<ZoomIn size={16} />} hint={shortcutKey + ' +'} onSelect={() => setZoomSetting(studioZoomStep(zoom, 1))}>{c.zoomIn}</StudioMenuItem>
             <StudioMenuItem icon={<ZoomOut size={16} />} hint={shortcutKey + ' -'} onSelect={() => setZoomSetting(studioZoomStep(zoom, -1))}>{c.zoomOut}</StudioMenuItem>
@@ -570,24 +661,26 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
           </StudioMenu>
           <StudioButtonGroup label={c.tools} accent>
             <StudioButton aria-pressed={tool === 'select'} aria-label={c.toolSelect} title={c.toolSelectHint} onClick={() => chooseTool('select')}><MousePointer2 size={16} /><span className={styles.collapsible}>{c.toolSelect}</span></StudioButton>
-            <StudioButton aria-pressed={tool === 'comment'} aria-label={openCount ? `${c.toolComment} (${c.openComments}: ${openCount})` : c.toolComment} title={c.toolCommentHint} disabled={!document} onClick={() => chooseTool('comment')}>
+            <StudioButton aria-pressed={tool === 'comment'} aria-label={openCount ? `${c.toolComment} (${c.openComments}: ${openCount})` : c.toolComment} title={c.toolCommentHint} disabled={!document || !!versionPreview} onClick={() => chooseTool('comment')}>
               <MessageSquare size={16} /><span className={styles.collapsible}>{c.toolComment}</span>{openCount > 0 && <StudioBadge>{openCount}</StudioBadge>}
             </StudioButton>
-            <StudioButton aria-pressed={tool === 'edit'} aria-label={c.toolEdit} title={c.toolEditHint} disabled={!document} onClick={() => chooseTool('edit')}><Pencil size={16} /><span className={styles.collapsible}>{c.toolEdit}</span></StudioButton>
+            <StudioButton aria-pressed={tool === 'edit'} aria-label={c.toolEdit} title={c.toolEditHint} disabled={!document || !!versionPreview} onClick={() => chooseTool('edit')}><Pencil size={16} /><span className={styles.collapsible}>{c.toolEdit}</span></StudioButton>
           </StudioButtonGroup>
           <StudioMenu label={c.present} title={c.present} ariaLabel={c.present} align="end" disabled={!document || (deck && count === 0)} trigger={<><Play size={16} /><span className={styles.presentLabel}>{c.present}</span><ChevronDown size={16} /></>}>
             {deck ? <>
               <StudioMenuItem icon={<Play size={16} />} onSelect={() => present(0)}>{c.presentStart}</StudioMenuItem>
               <StudioMenuItem icon={<Maximize2 size={16} />} onSelect={() => present(slide)}>{c.presentCurrent}</StudioMenuItem>
-              <StudioMenuItem icon={<Presentation size={16} />} onSelect={() => { if (document) setPresentation({ document, slide }); }}>{c.presenterView}</StudioMenuItem>
+              <StudioMenuItem icon={<Presentation size={16} />} onSelect={() => { const shown = versionPreview?.document ?? document; if (shown) setPresentation({ document: { ...shown, html: shownHtml }, slide }); }}>{c.presenterView}</StudioMenuItem>
             </> : <StudioMenuItem icon={<Maximize2 size={16} />} onSelect={() => present()}>{c.fullscreen}</StudioMenuItem>}
           </StudioMenu>
           <StudioButton icon aria-pressed={showHistory} title={historyLabel} aria-label={historyLabel} onClick={() => { setShowHistory(!showHistory); setShowExports(false); }}><History size={16} /></StudioButton>
-          <StudioButton variant="secondary" disabled={!dirty || busy || expired || !!active} onClick={() => { void action(async () => { await saveCurrent(); }); }}>{video ? v.save : c.save}</StudioButton>
+          <StudioButton variant="secondary" disabled={!dirty || busy || expired || !!active || !!versionPreview} onClick={() => { void action(async () => { await saveCurrent(); }); }}>{video ? v.save : c.save}</StudioButton>
           <StudioMenu label={c.exportMenu} variant="primary" align="end" trigger={<><Download size={16} /><span>{c.export}</span></>}>
             {video && <StudioMenuItem icon={<Film size={16} />} disabled={!document || busy || expired || !!active} onSelect={() => { void downloadVideo(); }}>MP4</StudioMenuItem>}
             <StudioMenuItem icon={<FileCode2 size={16} />} disabled={!document || busy} onSelect={() => { void exportFile('html'); }}>{c.downloadHtml}</StudioMenuItem>
             {deck && <StudioMenuItem icon={<Presentation size={16} />} disabled={!document || busy} onSelect={() => { void exportFile('pptx'); }}>{c.downloadPptx}</StudioMenuItem>}
+            <StudioMenuItem icon={<ImageDown size={16} />} disabled={!document || mode === 'source' || capturing || picking} onSelect={() => { void capturePng(deck ? { kind: 'slide', index: slide } : { kind: 'page' }, deck ? k.partSlide + '-' + (slide + 1) : video ? k.partFrame : k.partPage); }}>{deck ? k.slide : video ? k.frame : k.page}</StudioMenuItem>
+            <StudioMenuItem icon={<Crosshair size={16} />} disabled={!document || mode === 'source' || capturing || picking} onSelect={() => pickElement(true)}>{k.pick}</StudioMenuItem>
             <StudioMenuItem icon={<Printer size={16} />} disabled={!document || busy} onSelect={() => { if (document) void action(async () => { await exportStudioDocument(visibleHtml, deck, 'print', path, context.project.title); }); }}>{c.print}</StudioMenuItem>
             <StudioMenuSeparator />
             <StudioMenuItem icon={<Archive size={16} />} onSelect={() => { setShowExports(!showExports); setShowHistory(false); }}>{c.exportHistory}</StudioMenuItem>
@@ -602,14 +695,23 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
         {busy && renderSave.current && <span role="status">{v.rendering}</span>}
       </div>}
       {expired && <div className={styles.error} role="alert"><span>{c.expired}</span><a href={safeStudioReturn(context)!} target="_blank" rel="noopener noreferrer">{c.backToSemurai}</a></div>}
+      {versionPreview && <div className={styles.versionBanner} role="status">
+        <Eye size={16} /><span><strong>{h.preview.replace('{n}', String(versionPreview.version.version))}</strong> · {h.readOnly}</span>
+        <StudioButton variant="secondary" disabled={busy || dirty || expired} title={dirty ? h.unsaved : undefined} onClick={() => setConfirmRestore(versionPreview.version)}>{h.restoreAction}</StudioButton>
+        <StudioButton onClick={() => setVersionPreview(null)}>{h.closePreview}</StudioButton>
+      </div>}
       {error && <div className={styles.error} role="alert"><span>{error}</span><StudioButton icon title={c.close} aria-label={c.close} onClick={() => setError('')}><X size={16} /></StudioButton></div>}
       <div ref={body} className={styles.body}>
+        {(picking || capturing) && <div className={styles.pickBar} role="status">
+          {picking ? <><Crosshair size={16} /><span>{k.pickHint}</span><StudioButton variant="secondary" onClick={() => pickElement(false)}>{k.pickCancel}</StudioButton></>
+            : <><Loader2 size={16} className={styles.spinning} /><span>{k.capturing}</span></>}
+        </div>}
         {deck && count > 0 && mode !== 'source' && <aside className={styles.slides}>
           <div className={styles.slideTools}>
-            <StudioButton icon title={c.duplicateSlide} aria-label={c.duplicateSlide} disabled={count >= 60} onClick={() => slideAction('duplicate')}><Copy size={16} /></StudioButton>
-            <StudioButton icon title={c.removeSlide} aria-label={c.removeSlide} disabled={count <= 1} onClick={() => slideAction('remove')}><Trash2 size={16} /></StudioButton>
-            <StudioButton icon title={c.moveUp} aria-label={c.moveUp} disabled={slide === 0} onClick={() => slideAction('before')}><ChevronUp size={16} /></StudioButton>
-            <StudioButton icon title={c.moveDown} aria-label={c.moveDown} disabled={slide >= count - 1} onClick={() => slideAction('after')}><ChevronDown size={16} /></StudioButton>
+            <StudioButton icon title={c.duplicateSlide} aria-label={c.duplicateSlide} disabled={count >= 60 || !!versionPreview} onClick={() => slideAction('duplicate')}><Copy size={16} /></StudioButton>
+            <StudioButton icon title={c.removeSlide} aria-label={c.removeSlide} disabled={count <= 1 || !!versionPreview} onClick={() => slideAction('remove')}><Trash2 size={16} /></StudioButton>
+            <StudioButton icon title={c.moveUp} aria-label={c.moveUp} disabled={slide === 0 || !!versionPreview} onClick={() => slideAction('before')}><ChevronUp size={16} /></StudioButton>
+            <StudioButton icon title={c.moveDown} aria-label={c.moveDown} disabled={slide >= count - 1 || !!versionPreview} onClick={() => slideAction('after')}><ChevronDown size={16} /></StudioButton>
           </div>
           <DeckThumbnailRail count={count} activeIndex={Math.min(slide, count - 1)} labelTotal={count} buildThumbSrcDoc={thumbnail} onSelect={navigateSlide} previewViewport={{ width: 1920, height: 1080 }} />
         </aside>}
@@ -633,7 +735,7 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
             </div>
             : <div ref={viewport} className={styles.viewport} style={{ width: device || '100%', minWidth: device || undefined, zoom: presenting ? undefined : zoom / 100 }}>
               {review && reviewTarget?.position && !areaBox && <div className={styles.selectionBox} style={{ left: reviewTarget.position.x, top: reviewTarget.position.y, width: reviewTarget.position.width, height: reviewTarget.position.height }} />}
-              {review === 'area' && <div className={styles.areaOverlay} aria-label={r.area} onPointerDown={event => { if (event.button !== 0) return; const rect = event.currentTarget.getBoundingClientRect(); const x = (event.clientX - rect.left) / (zoom / 100); const y = (event.clientY - rect.top) / (zoom / 100); areaStart.current = { x, y }; setAreaBox({ x, y, width: 0, height: 0 }); event.currentTarget.setPointerCapture(event.pointerId); }} onPointerMove={event => { if (!areaStart.current) return; const rect = event.currentTarget.getBoundingClientRect(); const x = Math.max(0, Math.min(rect.width, event.clientX - rect.left)) / (zoom / 100); const y = Math.max(0, Math.min(rect.height, event.clientY - rect.top)) / (zoom / 100); setAreaBox({ x: Math.min(x, areaStart.current.x), y: Math.min(y, areaStart.current.y), width: Math.abs(x - areaStart.current.x), height: Math.abs(y - areaStart.current.y) }); }} onPointerUp={event => {
+              {review === 'area' && !picking && <div className={styles.areaOverlay} aria-label={r.area} onPointerDown={event => { if (event.button !== 0) return; const rect = event.currentTarget.getBoundingClientRect(); const x = (event.clientX - rect.left) / (zoom / 100); const y = (event.clientY - rect.top) / (zoom / 100); areaStart.current = { x, y }; setAreaBox({ x, y, width: 0, height: 0 }); event.currentTarget.setPointerCapture(event.pointerId); }} onPointerMove={event => { if (!areaStart.current) return; const rect = event.currentTarget.getBoundingClientRect(); const x = Math.max(0, Math.min(rect.width, event.clientX - rect.left)) / (zoom / 100); const y = Math.max(0, Math.min(rect.height, event.clientY - rect.top)) / (zoom / 100); setAreaBox({ x: Math.min(x, areaStart.current.x), y: Math.min(y, areaStart.current.y), width: Math.abs(x - areaStart.current.x), height: Math.abs(y - areaStart.current.y) }); }} onPointerUp={event => {
                 areaStart.current = null; event.currentTarget.releasePointerCapture(event.pointerId);
                 if (areaBox && areaBox.width > 5 && areaBox.height > 5) {
                   const hits = reviewTargets.current.filter(target => { const p = target.position; return p && p.x < areaBox.x + areaBox.width && p.y < areaBox.y + areaBox.height && p.x + p.width > areaBox.x && p.y + p.height > areaBox.y; }).sort((a, b) => a.position!.width * a.position!.height - b.position!.width * b.position!.height).slice(0, 8);
@@ -641,9 +743,9 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
                 }
                 setAreaBox(undefined);
               }} onPointerCancel={() => { areaStart.current = null; setAreaBox(undefined); }}>{areaBox && <div className={styles.selectionBox} style={{ left: areaBox.x, top: areaBox.y, width: areaBox.width, height: areaBox.height }} />}</div>}
-              <iframe ref={frame} title={c.preview} sandbox="allow-scripts allow-modals" srcDoc={srcdoc} onLoad={() => { reselect.current = true; frame.current?.contentWindow?.postMessage({ type: 'od-edit-mode', enabled: mode === 'edit' }, '*'); if (video) seekVideo(videoTimeRef.current); setFrameReady(value => value + 1); }} />
+              <iframe ref={frame} title={c.preview} sandbox="allow-scripts allow-modals" srcDoc={srcdoc} onLoad={() => { reselect.current = true; frame.current?.contentWindow?.postMessage({ type: 'od-edit-mode', enabled: mode === 'edit' }, '*'); if (pickingRef.current) frame.current?.contentWindow?.postMessage({ type: 'semurai:capture-pick', enabled: true }, '*'); if (video) seekVideo(videoTimeRef.current); setFrameReady(value => value + 1); }} />
             </div>}
-          {deck && document && mode !== 'source' && <label className={styles.notes}><span>{c.notes} · {slide + 1}/{count}</span><textarea value={document.notes?.[slide] ?? ''} placeholder={c.notes} onChange={event => { const notes = Array.from({ length: count }, (_, index) => document.notes?.[index] ?? ''); notes[slide] = event.target.value; change({ ...document, notes }); }} /></label>}
+          {deck && document && mode !== 'source' && <label className={styles.notes}><span>{c.notes} · {slide + 1}/{count}</span><textarea value={shownNotes?.[slide] ?? ''} placeholder={c.notes} readOnly={!!versionPreview} onChange={event => { const notes = Array.from({ length: count }, (_, index) => document.notes?.[index] ?? ''); notes[slide] = event.target.value; change({ ...document, notes }); }} /></label>}
         </div>
         {review && focusedComment && commentPoint && <section className={styles.commentPopover} data-testid="studio-comment-popover" aria-label={r.comments} style={{ left: commentPoint.x, top: commentPoint.y, maxHeight: `min(520px, 55vh, calc(100% - ${commentPoint.y + 8}px))` }}>
           <header><strong>{focusedComment.target.label}</strong><StudioButton icon title={c.close} aria-label={c.close} onClick={() => { setActiveCommentId(null); setCommentPoint(null); }}><X size={16} /></StudioButton></header>
@@ -651,11 +753,19 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
         </section>}
         {showHistory && <aside className={styles.drawer} aria-label={c.history}>
           <header className={styles.drawerHead}><div><h3>{c.history}</h3>{saved && <small>{c.version} {saved.version}</small>}</div><StudioButton icon title={c.close} aria-label={c.close} onClick={() => setShowHistory(false)}><X size={16} /></StudioButton></header>
-          <div className={styles.drawerList}>{versions.map(version => <div key={version.id} className={styles.drawerRow}>
-            <div className={styles.drawerMeta}><strong>{c.version} {version.version}</strong><small>{new Date(version.created_at).toLocaleString(locale)}</small></div>
-            {version.version === saved?.version ? <span className={styles.drawerCurrent}>{c.currentVersion}</span>
-              : <StudioButton variant="secondary" disabled={busy || dirty} onClick={() => { void action(async () => { await api('versions/' + version.id + '/restore', 'POST', { base_version: saved?.version, base_revision: saved?.document_hash }); await refresh(true); }); }}>{c.restore}</StudioButton>}
-          </div>)}</div>
+          <div className={styles.drawerList}>{!versions.length && <p className={styles.drawerEmpty}>{h.empty}</p>}{versions.map(version => {
+            const current = version.version === saved?.version, previewing = versionPreview?.version.id === version.id;
+            const source = studioVersionSource(version.kind), summary = studioVersionSummary(version, jobs);
+            // The current version is the working document: choosing it closes a preview.
+            return <button key={version.id} type="button" className={styles.versionRow} aria-current={current ? 'true' : undefined} aria-pressed={previewing}
+              disabled={versionLoading === version.id} onClick={() => { if (current) setVersionPreview(null); else void openVersion(version); }}>
+              <span className={styles.versionHead}><strong>{c.version} {version.version}</strong><span className={styles.versionSource} data-source={source}>{h[source]}</span>
+                {current && <span className={styles.drawerCurrent}>{c.currentVersion}</span>}{previewing && <span className={styles.versionPreviewing}>{h.previewing}</span>}
+                {versionLoading === version.id && <Loader2 size={14} className={styles.spinning} />}</span>
+              <time dateTime={version.created_at} title={new Date(version.created_at).toLocaleString(locale)}>{studioRelativeTime(version.created_at, locale)}</time>
+              {summary && <span className={styles.versionSummary} title={summary}>{summary}</span>}
+            </button>;
+          })}</div>
         </aside>}
         {showExports && <aside className={styles.drawer} aria-label={c.exportHistory}>
           <header className={styles.drawerHead}><div><h3>{c.exportHistory}</h3></div><StudioButton icon title={c.close} aria-label={c.close} onClick={() => setShowExports(false)}><X size={16} /></StudioButton></header>

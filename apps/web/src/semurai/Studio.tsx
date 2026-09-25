@@ -5,6 +5,7 @@ import { useI18n } from '../i18n';
 import { safeStudioReturn, studioDocumentTitle, studioSessionPath, type StudioContext } from './studio-context';
 import './studio.css';
 import { StudioEditor } from './StudioEditor';
+import { useStudioTheme } from './studio-theme';
 
 const copy = {
   en: { loading: 'Opening your project…', connected: 'Connected to Semurai', project: 'Your project',
@@ -34,6 +35,7 @@ export function SemuraiStudio() {
   const [context, setContext] = useState<StudioContext | null>(null);
   const [unavailable, setUnavailable] = useState(false);
   const { setLocale } = useI18n();
+  const { theme } = useStudioTheme();
   const c = copy[context?.project.uiLocale ?? 'en'];
   useEffect(() => {
     const controller = new AbortController();
@@ -68,7 +70,7 @@ export function SemuraiStudio() {
   // An expired grant must not discard a dirty document. Keep the editor mounted
   // so the user can retain/export their work while reconnecting to Semurai.
   if (context) return <StudioEditor context={context} expired={unavailable} onClose={() => { void closeSession(); }} />;
-  return <main className="semurai-studio-shell" data-testid="semurai-studio">
+  return <main className="semurai-studio-shell" data-testid="semurai-studio" data-studio-theme={theme}>
     <header className="semurai-studio-header">
       <div className="semurai-studio-wordmark"><span aria-hidden="true">S</span>Semurai Creative <small>Studio</small></div>
     </header>

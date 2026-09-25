@@ -1,6 +1,7 @@
 /* Loading and expired screen shown before the Studio editor opens. It uses
    the same app tokens (styles/tokens.css) as the editor; the wordmark red is
-   the only brand color. */
+   the only brand color. The dark theme mirrors the editor's dark tokens
+   (StudioEditor.module.css) for the few app tokens this screen reads. */
 .semurai-studio-shell { min-height: 100vh; background: color-mix(in srgb, var(--text-strong) 5%, var(--bg)); color: var(--text-strong); font-family: var(--sans); font-size: 13px; line-height: 20px; }
 .semurai-studio-header { display: flex; align-items: center; gap: 16px; min-height: 44px; padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--bg); }
 .semurai-studio-wordmark { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
@@ -12,4 +13,6 @@
 .semurai-studio-primary { display: inline-flex; align-items: center; height: 28px; margin-top: 16px; padding: 0 12px; border-radius: 6px; background: var(--text-strong); color: var(--bg); font-size: 12px; font-weight: 500; text-decoration: none; }
 .semurai-studio-primary:hover { background: color-mix(in srgb, var(--text-strong) 82%, var(--bg)); }
 .semurai-studio-shell :focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 22%, transparent); }
+.semurai-studio-shell[data-studio-theme='dark'] { color-scheme: dark; --bg: #1e1e1e; --text-strong: #ededed; --text-muted: #b3b3b3; --text-soft: #999; --border: #333; --blue: #5aa2ff; background: #141414; }
+.semurai-studio-shell[data-studio-theme='dark'] .semurai-studio-primary:hover { background: #d4d4d4; }
 @media (max-width: 620px) { .semurai-studio-content { padding: 48px 16px; } }

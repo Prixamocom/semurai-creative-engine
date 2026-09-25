@@ -34,6 +34,14 @@ function installStubs(fixture: DevFixture) {
     }
     if (endpoint === 'document') return json({ id: latest.id, version: latest.version, document: latest.document, document_hash: 'dev-hash-' + latest.version });
     if (endpoint === 'versions') return json([...versions].reverse().map(({ document: _document, ...version }) => version));
+    const versionMatch = /^versions\/([^/]+)(\/restore)?$/.exec(endpoint);
+    const record = versionMatch ? versions.find(item => item.id === versionMatch[1]) : undefined;
+    if (versionMatch && !record) return json(null, 404);
+    if (record && versionMatch?.[2] && method === 'POST') {
+      versions.push({ id: 'dev-v' + (latest.version + 1), version: latest.version + 1, kind: 'restore', created_at: new Date().toISOString(), document: record.document });
+      return json({ ok: true });
+    }
+    if (record) return json(record);
     if (endpoint === 'comments' && method === 'POST') {
       const now = new Date().toISOString();
       if (body.action === 'create') comments = [...comments, { id: body.id, text: body.text, target: body.target, resolved: false, revision: 1, author: 'Dev', created_at: now, replies: [] }];
