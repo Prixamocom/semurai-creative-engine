@@ -221,10 +221,12 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
 
   useEffect(() => {
     let live = true;
-    const read = () => { void api('comments').then(result => { if (live) setComments(result.data); }).catch(() => { if (live) setError(r.error); }); };
-    read(); window.addEventListener('focus', read);
-    return () => { live = false; window.removeEventListener('focus', read); };
-  }, [api, r.error]);
+    // A transient failure (e.g. right after a service restart) retries once quietly.
+    const read = (retry = true) => { void api('comments').then(result => { if (live) setComments(result.data); }).catch(() => { if (!live) return; if (retry) setTimeout(() => { if (live) read(false); }, 2000); else setError(r.loadError); }); };
+    const onFocus = () => read();
+    read(); window.addEventListener('focus', onFocus);
+    return () => { live = false; window.removeEventListener('focus', onFocus); };
+  }, [api, r.loadError]);
   const fileComments = comments.filter(item => item.target.file === activeFile);
   const markerItems = fileComments.map((item, index) => ({ ...item, number: index + 1, label: r.comments })).filter(item => showResolved || !item.resolved);
   const markersState = useRef({ items: markerItems, enabled: true, selected: activeCommentId });
