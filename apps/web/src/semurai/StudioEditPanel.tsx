@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from '
 import {
   AlignCenter, AlignCenterHorizontal, AlignEndHorizontal, AlignHorizontalJustifyCenter, AlignHorizontalJustifyEnd, AlignHorizontalJustifyStart,
   AlignHorizontalSpaceBetween, AlignJustify, AlignLeft, AlignRight, AlignStartHorizontal, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChevronRight,
-  Code2, CornerLeftUp, ImageDown, ImageUp, StretchHorizontal, Trash2, X,
+  Code2, CornerLeftUp, ImageDown, ImageUp, Sparkles, StretchHorizontal, Trash2, X,
 } from 'lucide-react';
 import { readManualEditFields, readManualEditOuterHtml, readManualEditStyles } from '../edit-mode/source-patches';
 import type { ManualEditPatch, ManualEditStyles, ManualEditTarget } from '../edit-mode/types';
@@ -12,9 +12,10 @@ import { studioLayerPath, studioLayerTree } from './studio-layers';
 import { StudioColorField, StudioField, StudioQuadField, StudioSegmented, StudioSelectField } from './StudioFields';
 import { StudioLayerTree } from './StudioLayerTree';
 import { StudioImageMenu } from './StudioImageMenu';
+import { setStudioTweak, stepStudioTweak, studioTweakError, studioTweakGroups, studioTweaks, type StudioTweak, type StudioTweakGroup } from './studio-tweaks';
 import styles from './StudioEditPanel.module.css';
 
-export type StudioInspectorMode = 'simple' | 'pro' | 'code';
+export type StudioInspectorMode = 'simple' | 'pro' | 'code' | 'tweaks';
 type Commit = (values: Partial<ManualEditStyles>) => string | null;
 
 function Section({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
@@ -156,7 +157,7 @@ function Properties({ c, mode, source, target, disabled, commit, onPatch, onMode
   </>;
 }
 
-function PageProperties({ c, source, disabled, onPatch }: { c: StudioEditPanelCopy; source: string; disabled: boolean; onPatch: (patch: ManualEditPatch) => boolean }) {
+function PageProperties({ c, source, disabled, onPatch, hint = c.pageHint }: { c: StudioEditPanelCopy; source: string; disabled: boolean; onPatch: (patch: ManualEditPatch) => boolean; hint?: string }) {
   const page = useMemo(() => readManualEditStyles(source, '__body__'), [source]);
   const commit: Commit = values => {
     const result = studioStyleCommit(values, false, c);
@@ -167,8 +168,46 @@ function PageProperties({ c, source, disabled, onPatch }: { c: StudioEditPanelCo
     <StudioColorField label={c.background} value={studioStyleDisplay('backgroundColor', page.backgroundColor, true)} pickLabel={c.pickColor} placeholder={c.none} disabled={disabled} onCommit={next => commit({ backgroundColor: next })} />
     <StudioSelectField label={c.font} value={page.fontFamily} disabled={disabled} options={[{ value: '', label: c.inherit }, ...STUDIO_FONT_OPTIONS]} onCommit={next => commit({ fontFamily: next })} />
     <div className={styles.row2}><StudioField label={c.baseSize} ariaLabel={c.baseSize} value={studioStyleDisplay('fontSize', page.fontSize, true)} placeholder="16px" step="fontSize" disabled={disabled} onCommit={next => commit({ fontSize: next })} /></div>
-    <p className={styles.hint}>{c.pageHint}</p>
+    <p className={styles.hint}>{hint}</p>
   </Section>;
+}
+
+const GROUP_TITLES: Record<StudioTweakGroup, 'groupColor' | 'groupType' | 'groupSpace' | 'groupOther'> = { color: 'groupColor', type: 'groupType', space: 'groupSpace', other: 'groupOther' };
+
+/**
+ * Tweaks tab: design-wide knobs. The page background, font and base size
+ * (the same body patch as the Page section) always come first; below them
+ * every root CSS variable of the file, grouped. A variable edit rewrites only
+ * that value in the source and goes through the editor's undoable change path.
+ */
+function TweaksTab({ c, source, disabled, onPatch, onSource, onAskAi }: {
+  c: StudioEditPanelCopy; source: string; disabled: boolean; onPatch: (patch: ManualEditPatch) => boolean;
+  onSource?: (source: string) => void; onAskAi?: (prompt: string) => void;
+}) {
+  const tweaks = useMemo(() => studioTweaks(source), [source]);
+  const commit = (tweak: StudioTweak) => (value: string): string | null => {
+    const error = studioTweakError(tweak, value);
+    if (error) return error === 'empty' ? c.tweakEmpty : error === 'color' ? c.tweakColor : c.tweakUnsafe;
+    const next = setStudioTweak(source, tweak.name, value);
+    if (next !== null) onSource?.(next);
+    return null;
+  };
+  const field = (tweak: StudioTweak) => {
+    const common = { label: tweak.name, value: tweak.value, disabled: disabled || !onSource, onCommit: commit(tweak) };
+    if (tweak.kind === 'color') return <StudioColorField key={tweak.name} {...common} pickLabel={c.pickColor} />;
+    if (tweak.kind === 'font') return <StudioSelectField key={tweak.name} {...common} options={[...STUDIO_FONT_OPTIONS]} />;
+    return <StudioField key={tweak.name} {...common} ariaLabel={tweak.name} stepper={tweak.kind === 'length' || tweak.kind === 'number' ? stepStudioTweak : undefined} />;
+  };
+  return <>
+    <PageProperties c={c} source={source} disabled={disabled} onPatch={onPatch} hint={c.tweaksPageHint} />
+    {tweaks.length ? <>
+      <p className={styles.tweaksHint}>{c.tweaksHint}</p>
+      {studioTweakGroups(tweaks).map(({ group, items }) => <Section key={group} title={c[GROUP_TITLES[group]]}>{items.map(field)}</Section>)}
+    </> : <Section title={c.tweaksEmptyTitle}>
+      <p className={styles.hint}>{c.tweaksEmpty}</p>
+      {onAskAi && <button type="button" className={styles.ghostButton} disabled={disabled} onClick={() => onAskAi(c.tweaksPrompt)}><Sparkles size={14} />{c.tweaksAsk}</button>}
+    </Section>}
+  </>;
 }
 
 /**
@@ -178,12 +217,15 @@ function PageProperties({ c, source, disabled, onPatch }: { c: StudioEditPanelCo
  * version save, and all commits run through the editor's undoable patch().
  * `onInsertImage` adds the "Add image" menu to the panel header (not for decks);
  * `onExportPng` adds "Export element as PNG" for the selected element.
+ * The Tweaks tab writes variable edits through `onSource` (the whole new file
+ * source) and hands its "ask AI" prompt to `onAskAi`.
  */
-export function StudioEditPanel({ locale, source, targets, selected, mode, layersOpen, disabled, onMode, onLayersOpen, onSelect, onPatch, onPickImage, onInsertImage, onExportPng, exportBusy = false }: {
+export function StudioEditPanel({ locale, source, targets, selected, mode, layersOpen, disabled, onMode, onLayersOpen, onSelect, onPatch, onPickImage, onInsertImage, onExportPng, exportBusy = false, onSource, onAskAi }: {
   locale: keyof typeof studioEditPanelCopy; source: string; targets: ManualEditTarget[]; selected: ManualEditTarget | null; mode: StudioInspectorMode;
   layersOpen: boolean; disabled: boolean; onMode: (mode: StudioInspectorMode) => void; onLayersOpen: (open: boolean) => void;
   onSelect: (target: ManualEditTarget | null) => void; onPatch: (patch: ManualEditPatch) => boolean; onPickImage: () => void;
   onInsertImage?: (source: 'attach' | 'library') => void; onExportPng?: () => void; exportBusy?: boolean;
+  onSource?: (source: string) => void; onAskAi?: (prompt: string) => void;
 }) {
   const c = studioEditPanelCopy[locale];
   const layers = useMemo(() => studioLayerTree(source, targets), [source, targets]);
@@ -218,11 +260,14 @@ export function StudioEditPanel({ locale, source, targets, selected, mode, layer
       </Fragment>) : <span aria-current="true">{selected.label || selected.tagName}</span>}
     </nav>
     <div className={styles.modes} role="tablist" aria-label={c.modes}>
-      {(['simple', 'pro', 'code'] as const).map(value => <button key={value} type="button" role="tab" id={'studio-mode-' + value} aria-selected={mode === value} aria-controls="studio-edit-body" onClick={() => onMode(value)}>{c[value]}</button>)}
+      {(['simple', 'pro', 'code', 'tweaks'] as const).map(value => <button key={value} type="button" role="tab" id={'studio-mode-' + value} aria-selected={mode === value} aria-controls="studio-edit-body"
+        title={value === 'tweaks' ? c.tweaksTitle : undefined} onClick={() => onMode(value)}>{c[value]}</button>)}
     </div>
-    <StudioLayerTree layers={layers} selectedId={selected?.id ?? null} open={layersOpen} copy={c} onOpenChange={onLayersOpen} onSelect={select} />
-    <div id="studio-edit-body" className={styles.body} role="tabpanel" aria-labelledby={'studio-mode-' + mode} key={(selected?.id ?? '') + mode}>
-      {mode === 'code' ? <CodeTab c={c} source={source} selected={selected} disabled={disabled} onPatch={onPatch} />
+    {/* Tweaks are design-wide, so the element tree stays out of the way there. */}
+    {mode !== 'tweaks' && <StudioLayerTree layers={layers} selectedId={selected?.id ?? null} open={layersOpen} copy={c} onOpenChange={onLayersOpen} onSelect={select} />}
+    <div id="studio-edit-body" className={styles.body} role="tabpanel" aria-labelledby={'studio-mode-' + mode} key={mode === 'tweaks' ? mode : (selected?.id ?? '') + mode}>
+      {mode === 'tweaks' ? <TweaksTab c={c} source={source} disabled={disabled} onPatch={onPatch} onSource={onSource} onAskAi={onAskAi} />
+        : mode === 'code' ? <CodeTab c={c} source={source} selected={selected} disabled={disabled} onPatch={onPatch} />
         : selected ? <Properties c={c} mode={mode} source={source} target={selected} disabled={disabled} commit={commit} onPatch={onPatch} onMode={onMode} onPickImage={onPickImage} />
           : <PageProperties c={c} source={source} disabled={disabled} onPatch={onPatch} />}
     </div>

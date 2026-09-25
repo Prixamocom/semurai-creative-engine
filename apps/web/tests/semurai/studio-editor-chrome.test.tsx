@@ -153,11 +153,22 @@ describe('Studio top bar', () => {
     expect(screen.getByRole('button', { name: 'Zoom: 100%' })).toBeTruthy();
 
     // A 768px tablet frame on a 384px canvas fits at 50%.
-    fireEvent.click(screen.getByRole('button', { name: 'Tablet' }));
+    fireEvent.click(within(menu('Device: Desktop')).getByRole('menuitemradio', { name: /^Tablet/ }));
+    expect(screen.getByRole('button', { name: 'Device: Tablet' })).toBeTruthy();
     Object.defineProperty(viewport().parentElement!, 'clientWidth', { configurable: true, value: 384 });
     fireEvent.click(within(menu('Zoom: 100%')).getByRole('menuitemradio', { name: 'Fit to width' }));
     expect(screen.getByRole('button', { name: 'Zoom: 50%' })).toBeTruthy();
     expect(viewport().style.zoom).toBe('0.5');
+  });
+
+  it('picks the device from one icon menu with each width', async () => {
+    await open();
+    expect(screen.queryByRole('group', { name: 'Device' })).toBeNull();
+    const devices = menu('Device: Desktop');
+    expect(within(devices).getAllByRole('menuitemradio').map(item => [item.textContent, item.getAttribute('aria-checked')])).toEqual([['Desktop100%', 'true'], ['Tablet768 px', 'false'], ['Mobile390 px', 'false']]);
+    fireEvent.click(within(devices).getByRole('menuitemradio', { name: /^Mobile/ }));
+    expect(screen.getByRole('button', { name: 'Device: Mobile' })).toBeTruthy();
+    expect(document.querySelector<HTMLIFrameElement>('iframe[title="Preview"]')!.parentElement!.style.width).toBe('390px');
   });
 
   it('offers full screen for pages and the three presentation modes for decks', async () => {

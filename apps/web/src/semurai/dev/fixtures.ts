@@ -48,11 +48,26 @@ export const DEV_LANDING_HTML = `<!doctype html>
 <footer class="footer" id="contact"><span>© 2026 Lumen Coffee Roasters</span><nav><a href="https://example.com/regulamin">Regulamin</a><a href="https://example.com/prywatnosc">Prywatność</a></nav></footer>
 </body></html>`;
 
-/** A second project file, so the harness exercises the file switcher. */
+/** A second project file, so the harness exercises the file switcher and the Tweaks tab (its styles use :root variables). */
 export const DEV_ABOUT_HTML = `<!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><title>O nas</title>
-<style>body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#1d1d1f;background:#fbfaf7}main{max-width:760px;margin:0 auto;padding:96px 32px}h1{font-size:48px;margin:0 0 20px}p{font-size:18px;line-height:1.7;color:#5b5b5b}</style></head>
-<body><main><h1>O palarni Lumen</h1><p>Zaczęliśmy w 2019 roku od jednego pieca i trzech odmian ziarna. Dziś palimy dwanaście kaw z ośmiu krajów, ale każdą partię nadal sprawdzamy ręcznie.</p><p>Odwiedź nas w każdą sobotę na degustacji w Krakowie.</p></main></body></html>`;
+<style>
+:root {
+  --color-ink: #1d1d1f;
+  --color-muted: #5b5b5b;
+  --color-paper: #fbfaf7;
+  --color-accent: #c26a3d;
+  --font-body: Arial, Helvetica, sans-serif;
+  --font-size-title: 48px;
+  --line-height-body: 1.7;
+  --space-page: 96px;
+  --radius-card: 16px;
+  --measure: 760px;
+  --title-color: var(--color-ink);
+}
+body{margin:0;font-family:var(--font-body);color:var(--color-ink);background:var(--color-paper)}main{max-width:var(--measure);margin:0 auto;padding:var(--space-page) 32px}h1{font-size:var(--font-size-title);margin:0 0 20px;color:var(--title-color)}p{font-size:18px;line-height:var(--line-height-body);color:var(--color-muted)}.note{padding:20px 24px;border-radius:var(--radius-card);background:#fff;border-left:4px solid var(--color-accent)}
+</style></head>
+<body><main><h1>O palarni Lumen</h1><p>Zaczęliśmy w 2019 roku od jednego pieca i trzech odmian ziarna. Dziś palimy dwanaście kaw z ośmiu krajów, ale każdą partię nadal sprawdzamy ręcznie.</p><p class="note">Odwiedź nas w każdą sobotę na degustacji w Krakowie.</p></main></body></html>`;
 
 /** A three-slide deck built on the upstream deck skeleton (open with ?fixture=deck). */
 export const DEV_DECK_HTML = DECK_SKELETON_HTML
@@ -70,6 +85,8 @@ export const DEV_MEDIA = [
 ];
 
 export type DevFixture = 'page' | 'deck';
+
+export const DEV_FIRST_PROMPT = 'Stwórz stronę główną palarni kawy Lumen w stylu ciepłego minimalizmu, z sekcją oferty, opinią klientki, cennikiem trzech planów i stopką; zdjęcia produktów weź z https://example.com/media/lumen-coffee-roasters/katalog-produktow-2026/zdjecia-w-wysokiej-rozdzielczosci/paczki-kawy-250g-500g-1500g i dopasuj kolory do marki.';
 
 /** The harness document for a fixture: a two-file landing page or a deck. */
 export function devDocument(fixture: DevFixture) {

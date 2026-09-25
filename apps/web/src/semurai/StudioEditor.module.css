@@ -251,7 +251,8 @@
 .drawerHead > div { display: grid; min-width: 0; line-height: 16px; }
 .drawerHead h3 { margin: 0; font-size: var(--studio-text-lg); font-weight: 600; }
 .drawerHead small { color: var(--studio-text-tertiary); font-size: var(--studio-text-sm); }
-.drawerList { flex: 1; min-height: 0; overflow-y: auto; padding: var(--studio-space-1) 0; }
+/* Drawers only ever scroll vertically; long content is clamped or wrapped inside its row. */
+.drawerList { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; padding: var(--studio-space-1) 0; }
 .drawerRow { display: flex; align-items: center; justify-content: space-between; gap: var(--studio-space-2); min-height: 52px; padding: var(--studio-space-2) var(--studio-space-2) var(--studio-space-2) var(--studio-space-4); }
 .drawerRow + .drawerRow { border-top: 1px solid var(--studio-border); }
 .drawerMeta { display: grid; min-width: 0; line-height: 16px; }
@@ -273,7 +274,10 @@
 .versionSource[data-source=ai] { background: var(--studio-accent-soft); color: var(--studio-accent); }
 .versionPreviewing { margin-left: auto; color: var(--studio-accent); font-size: var(--studio-text-sm); font-weight: 600; }
 .versionRow time { color: var(--studio-text-tertiary); font-size: var(--studio-text-sm); }
-.versionSummary { display: -webkit-box; overflow: hidden; color: var(--studio-text-secondary); font-size: var(--studio-text-md); line-height: 16px; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+/* The row is a button, which inherits `white-space: nowrap` from the app button defaults: the prompt
+   then grew to one line as wide as its text and scrolled the drawer sideways. It wraps again here,
+   stretched to the row, clamped to two lines with an ellipsis (full prompt in the title tooltip). */
+.versionSummary { display: -webkit-box; justify-self: stretch; width: 100%; min-width: 0; max-width: 100%; overflow: hidden; white-space: normal; color: var(--studio-text-secondary); font-size: var(--studio-text-md); line-height: 16px; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 
 /* Read-only version preview banner above the canvas. */
 .versionBanner { display: flex; flex-shrink: 0; flex-wrap: wrap; align-items: center; gap: var(--studio-space-2); min-height: 40px; padding: var(--studio-space-1) var(--studio-space-2) var(--studio-space-1) var(--studio-space-4); border-bottom: 1px solid var(--studio-border); background: var(--studio-accent-soft); color: var(--studio-text); font-size: var(--studio-text-md); }
@@ -290,21 +294,25 @@
 /* The bar drops labels as the workspace narrows (it shares the row with the
    side panel, so it follows its own width rather than the viewport):
    first the view labels and file count, then the Present label, then the save
-   state and last the tool labels, leaving icons with tooltips. Thresholds are
-   measured one-row widths plus a small margin: in Polish the bar needs 806px
-   with every label hidden, +159px for the tool labels (Zaznacz / Komentarz /
-   Edycja) and +54px for the save state; English is narrower. German labels are
-   wider (820px, +201px, +72px), so it collapses earlier. At a 1280px window with
-   the default 390px panel the workspace is 884px, so the tool labels only fit
-   with a panel of about 310px or less (or a window of about 1370px). */
-@container workspace (max-width: 1240px) { .viewLabel, .fileCount { display: none; } }
-@container workspace (max-width: 1080px) { .presentLabel { display: none; } .fileTrigger.fileTrigger { max-width: 200px; } }
-@container workspace (max-width: 1025px) { .saveState { display: none; } }
-@container workspace (max-width: 972px) { .collapsible { display: none; } }
-@container workspace (max-width: 1345px) { :lang(de) .viewLabel, :lang(de) .fileCount { display: none; } }
-@container workspace (max-width: 1175px) { :lang(de) .presentLabel { display: none; } }
-@container workspace (max-width: 1100px) { :lang(de) .saveState { display: none; } }
-@container workspace (max-width: 1030px) { :lang(de) .collapsible { display: none; } }
+   state, then the Export label and last the tool labels, leaving icons with
+   tooltips. Thresholds are measured one-row widths plus a small margin, with
+   the device choice as one icon menu. Polish: 706px with every label hidden,
+   +158px tool labels (Zaznacz / Komentarz / Edycja), +49px Export label,
+   +116px save state (budgeted for the longer "Niezapisane zmiany"), +58px
+   Present, +138px view labels and file count. English is narrower, German
+   wider (726px, +202, +42, +166, +75, +178), so it collapses earlier. At a
+   1280px window with the default 390px panel the workspace is 884px: the tool
+   labels show and the Export button is icon only. */
+@container workspace (max-width: 1232px) { .viewLabel, .fileCount { display: none; } }
+@container workspace (max-width: 1094px) { .presentLabel { display: none; } .fileTrigger.fileTrigger { max-width: 200px; } }
+@container workspace (max-width: 1036px) { .saveState { display: none; } }
+@container workspace (max-width: 920px) { .exportLabel { display: none; } }
+@container workspace (max-width: 871px) { .collapsible { display: none; } }
+@container workspace (max-width: 1397px) { :lang(de) .viewLabel, :lang(de) .fileCount { display: none; } }
+@container workspace (max-width: 1219px) { :lang(de) .presentLabel { display: none; } }
+@container workspace (max-width: 1144px) { :lang(de) .saveState { display: none; } }
+@container workspace (max-width: 977px) { :lang(de) .exportLabel { display: none; } }
+@container workspace (max-width: 935px) { :lang(de) .collapsible { display: none; } }
 @media (max-width: 1100px) { .slides { width: 112px; } }
 /* Below 800px the side panel becomes a full-screen overlay opened from the bar. */
 @media (max-width: 800px) {

@@ -7,16 +7,17 @@ import { useEffect, useState } from 'react';
 import { useI18n } from '../../i18n';
 import type { StudioContext } from '../studio-context';
 import { StudioEditor } from '../StudioEditor';
-import { DEV_MEDIA, DEV_SESSION_PATH, devComments, devDocument, devStudioContext, type DevFixture } from './fixtures';
+import { DEV_FIRST_PROMPT, DEV_MEDIA, DEV_SESSION_PATH, devComments, devDocument, devStudioContext, type DevFixture } from './fixtures';
 
 type Locale = StudioContext['project']['uiLocale'];
-interface DevVersion { id: string; version: number; kind: string; created_at: string; document: unknown }
+interface DevVersion { id: string; version: number; kind: string; created_at: string; document: unknown; summary?: string }
 interface DevComment { id: string; text: string; resolved: boolean; revision: number; author: string; created_at: string; target: unknown; replies: { id: string; text: string; author: string; created_at: string }[] }
 
 function installStubs(fixture: DevFixture) {
   const originalFetch = window.fetch.bind(window);
   const OriginalEventSource = window.EventSource;
-  const versions: DevVersion[] = [{ id: 'dev-v1', version: 1, kind: 'generate', created_at: new Date().toISOString(), document: devDocument(fixture) }];
+  // A long first prompt (with an unbroken URL) keeps the history drawer's clamping visible.
+  const versions: DevVersion[] = [{ id: 'dev-v1', version: 1, kind: 'generate', created_at: new Date().toISOString(), document: devDocument(fixture), summary: DEV_FIRST_PROMPT }];
   let comments: DevComment[] = devComments(fixture);
   const current = () => versions[versions.length - 1]!;
   const json = (data: unknown, status = 200) => new Response(JSON.stringify({ data }), { status, headers: { 'Content-Type': 'application/json' } });

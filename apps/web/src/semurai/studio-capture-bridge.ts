@@ -7,6 +7,7 @@ import { STUDIO_PREVIEW_ACCENT } from './studio-comment-bridge';
  *   semurai:capture-pick     { enabled }         hover highlight + click picks an element
  *   -> semurai:capture-picked { elementId, label } or semurai:capture-pick-cancel (Escape)
  *   semurai:capture-measure  { id, target }      -> semurai:capture-measure:result
+ *                            (target.kind: page | viewport | slide | element)
  *   semurai:capture-render   { id, clip, document, width, height, background, stage }
  *   -> semurai:capture-render:result { id, blob, width, height } or { id, error }
  *
@@ -100,9 +101,11 @@ export const STUDIO_CAPTURE_BRIDGE = String.raw`(function () {
   function measure(target) {
     var kind = target && target.kind;
     var element = kind === 'element' ? findElement(target) : kind === 'slide' ? document.querySelector('.deck-stage') : null;
-    if (kind !== 'page' && !element) return { error: 'not-found' };
+    if (kind !== 'page' && kind !== 'viewport' && !element) return { error: 'not-found' };
     var scroll = scrollOffset(), size = documentSize();
     var result = { kind: kind, scroll: scroll, document: size, background: backgroundOf(element || document.body || document.documentElement), label: element ? labelOf(element) : '' };
+    // The visible viewport in viewport coordinates; the host adds the scroll offset back.
+    if (kind === 'viewport') { var root = document.documentElement; result.rect = { x: 0, y: 0, width: root.clientWidth || window.innerWidth, height: root.clientHeight || window.innerHeight }; return result; }
     if (!element) { result.rect = { x: -scroll.x, y: -scroll.y, width: size.width, height: size.height }; return result; }
     var box = element.getBoundingClientRect();
     result.rect = { x: box.left, y: box.top, width: box.width, height: box.height };

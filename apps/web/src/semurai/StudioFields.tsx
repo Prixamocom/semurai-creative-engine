@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { ChevronDown, Link2, PanelBottom, PanelLeft, PanelRight, PanelTop, Unlink2 } from 'lucide-react';
-import { stepStudioValue, type StudioStyleKey } from './studio-edit-values';
+import { stepStudioValue, studioHexColor, type StudioStyleKey } from './studio-edit-values';
 import styles from './StudioEditPanel.module.css';
 
 /** Returns an inline error message, or null when the value was committed. */
@@ -10,10 +10,12 @@ export type StudioCommit = (value: string) => string | null;
  * Compact 28px field with the label inside on the left. Commits on Enter or
  * blur (only when the text changed), reverts on Escape and, for numeric
  * properties, steps with ArrowUp/ArrowDown (Shift = x10) committing each step.
+ * `stepper` replaces the style-key stepping for values that are not element
+ * styles (the design variables on the Tweaks tab).
  */
-export function StudioField({ label, icon, ariaLabel, value, placeholder, step, adornment, disabled, onCommit }: {
+export function StudioField({ label, icon, ariaLabel, value, placeholder, step, stepper, adornment, disabled, onCommit }: {
   label?: string; icon?: ReactNode; ariaLabel: string; value: string; placeholder?: string; step?: StudioStyleKey;
-  adornment?: ReactNode; disabled?: boolean; onCommit: StudioCommit;
+  stepper?: (value: string, direction: 1 | -1, large: boolean) => string | null; adornment?: ReactNode; disabled?: boolean; onCommit: StudioCommit;
 }) {
   const [draft, setDraft] = useState(value);
   const [error, setError] = useState('');
@@ -38,8 +40,9 @@ export function StudioField({ label, icon, ariaLabel, value, placeholder, step, 
         onKeyDown={event => {
           if (event.key === 'Enter') { event.preventDefault(); commit(); }
           else if (event.key === 'Escape') { event.preventDefault(); edited.current = false; setDraft(value); setError(''); }
-          else if (step && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
-            const next = stepStudioValue(step, draft, event.key === 'ArrowUp' ? 1 : -1, event.shiftKey);
+          else if ((step || stepper) && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+            const direction = event.key === 'ArrowUp' ? 1 : -1;
+            const next = stepper ? stepper(draft, direction, event.shiftKey) : stepStudioValue(step!, draft, direction, event.shiftKey);
             if (next === null) return;
             event.preventDefault(); setDraft(next); commit(next);
           }
@@ -53,7 +56,9 @@ export function StudioField({ label, icon, ariaLabel, value, placeholder, step, 
 export function StudioColorField({ label, value, pickLabel, placeholder, disabled, onCommit }: { label: string; value: string; pickLabel: string; placeholder?: string; disabled?: boolean; onCommit: StudioCommit }) {
   const picker = useRef<HTMLInputElement>(null);
   const commitRef = useRef(onCommit); commitRef.current = onCommit;
-  const hex = /^#[0-9a-f]{6}$/.test(value) ? value : '#000000';
+  // Short hex and rgb() values still open the picker on their color.
+  const normalized = studioHexColor(value);
+  const hex = /^#[0-9a-f]{6}$/.test(normalized) ? normalized : '#000000';
   // Uncontrolled on purpose: the native `change` event fires once the picker
   // closes, while React's onChange follows `input` and would commit (and
   // reload the preview) on every drag step.

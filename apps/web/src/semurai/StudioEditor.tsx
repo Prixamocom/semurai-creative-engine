@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type CSSProperties } from 'react';
 import {
   Archive, ArrowLeft, ArrowUp, ChevronDown, ChevronUp, Code2, Copy, Crosshair, Download, Eye, FileCode2, Film, History, ImageDown, Loader2, LogOut, Maximize, Maximize2, MessageSquare, Monitor,
   Moon, MoreHorizontal, MousePointer2, PanelLeftClose, PanelLeftOpen, Pencil, Play, Presentation, Printer, RotateCcw, RotateCw, Smartphone, Sparkles, Sun, SunMoon, Tablet, Trash2, X, ZoomIn, ZoomOut,
@@ -10,7 +10,7 @@ import { applyManualEditPatch } from '../edit-mode/source-patches';
 import type { ManualEditPatch, ManualEditTarget } from '../edit-mode/types';
 import { safeStudioReturn, studioSessionPath, type StudioContext } from './studio-context';
 import { emptyStudioPreviewScroll, nextStudioPreviewScroll, STUDIO_PREVIEW_RELOAD_WAIT_MS, STUDIO_PREVIEW_SCROLL_SETTLE_MS, studioPreviewSource, studioSlideCount } from './studio-preview';
-import { studioCaptureCopy, studioEditorCopy, studioFileCount, studioHistoryCopy, studioThemeCopy } from './studio-editor-copy';
+import { studioCaptureCopy, studioDrawCopy, studioEditorCopy, studioFileCount, studioHistoryCopy, studioThemeCopy } from './studio-editor-copy';
 import { STUDIO_ZOOM_STEPS, studioFitZoom, studioZoomShortcut, studioZoomStep } from './studio-zoom';
 import { StudioBadge, StudioButton, StudioButtonGroup, StudioMenu, StudioMenuGroup, StudioMenuItem, StudioMenuSeparator } from './StudioButton';
 import { captureStudioPng, copyStudioImage, studioCaptureMessage, studioPngFileName, type StudioCaptureTarget } from './studio-capture';
@@ -26,7 +26,9 @@ import { StudioPresenter } from './StudioPresenter';
 import { StudioImagePicker } from './StudioImagePicker';
 import { placeStudioImage } from './studio-images';
 import styles from './StudioEditor.module.css';
-import { StudioReview } from './StudioReview';
+import { StudioReview, type StudioReviewSelectMode } from './StudioReview';
+import { StudioDrawBar, StudioDrawLayer } from './StudioDraw';
+import { composeStudioAnnotation, initialStudioDraw, STUDIO_ANNOTATION_MAX_SIDE, STUDIO_ANNOTATION_SCALE, studioBlobDataUrl, studioDrawReducer } from './studio-draw';
 import { StudioEditPanel, type StudioInspectorMode } from './StudioEditPanel';
 import { StudioCommentThread } from './StudioCommentThread';
 import { readReviewTarget, reviewBrief, reviewCopy, type ReviewTarget, type StudioComment } from './studio-review';
@@ -35,7 +37,7 @@ interface StudioDocument { version: 1; kind: string; name: string; html: string;
 interface SavedSource { id: string; version: number; document: StudioDocument; document_hash: string }
 type Job = StudioChatJob;
 type Version = StudioVersion;
-interface StudioToastState { id: number; message: string; detail?: string; tone?: 'error'; blob?: Blob }
+interface StudioToastState { id: number; message: string; detail?: string; tone?: 'error'; blob?: Blob; download?: { blob: Blob; name: string } }
 const THEMES = [['light', Sun], ['dark', Moon], ['system', SunMoon]] as const;
 interface ProjectExport { id: string; format: 'html' | 'pptx'; version: number; title: string; created_at: string; mime_type: string; size: number; sha256: string }
 /** The global tool group drives the side panel: select = AI chat, comment = comments, edit = Edit panel. */
@@ -48,6 +50,7 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
   const k = studioCaptureCopy[context.project.uiLocale];
   const h = studioHistoryCopy[context.project.uiLocale];
   const t = studioThemeCopy[context.project.uiLocale];
+  const d = studioDrawCopy[context.project.uiLocale];
   const { preference: themePreference, theme, setPreference: setThemePreference } = useStudioTheme();
   const [picking, setPicking] = useState(false);
   const pickingRef = useRef(picking); pickingRef.current = picking;
@@ -60,15 +63,24 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [resizing, setResizing] = useState(false);
   const resizeStart = useRef({ x: 0, width: 390 });
-  const [inspectorMode, setInspectorMode] = useState<StudioInspectorMode>(() => { try { const value = localStorage.getItem('semurai-studio-inspector'); return value === 'pro' || value === 'code' ? value : 'simple'; } catch { return 'simple'; } });
+  const [inspectorMode, setInspectorMode] = useState<StudioInspectorMode>(() => { try { const value = localStorage.getItem('semurai-studio-inspector'); return value === 'pro' || value === 'code' || value === 'tweaks' ? value : 'simple'; } catch { return 'simple'; } });
   const [commentPoint, setCommentPoint] = useState<{ x: number; y: number } | null>(null);
   const body = useRef<HTMLDivElement>(null);
   const [tool, setTool] = useState<StudioTool>('select');
+  const toolRef = useRef(tool); toolRef.current = tool;
   const [view, setView] = useState<'preview' | 'source'>('preview');
-  const [reviewArea, setReviewArea] = useState(false);
+  const [reviewMode, setReviewMode] = useState<StudioReviewSelectMode>('element');
   // Source view and the Comment/Edit tools exclude each other (see chooseTool/chooseView).
   const mode: 'preview' | 'edit' | 'source' = view === 'source' ? 'source' : tool === 'edit' ? 'edit' : 'preview';
-  const review: 'element' | 'area' | null = mode === 'preview' && tool === 'comment' ? (reviewArea ? 'area' : 'element') : null;
+  const commenting = mode === 'preview' && tool === 'comment';
+  // Drawing leaves the preview alone (no element hover or comment targets): the draw layer takes the pointer.
+  const review: 'element' | 'area' | null = commenting && reviewMode !== 'draw' ? reviewMode : null;
+  const [draw, dispatchDraw] = useReducer(studioDrawReducer, initialStudioDraw);
+  const drawRef = useRef(draw); drawRef.current = draw;
+  const [drawSending, setDrawSending] = useState(false);
+  /** The step waiting behind "Discard the drawing?" when unsent marks would be lost. */
+  const [discardDrawing, setDiscardDrawing] = useState<{ then: () => void } | null>(null);
+  const discardRef = useRef(discardDrawing); discardRef.current = discardDrawing;
   const [comments, setComments] = useState<StudioComment[]>([]);
   const [showResolved, setShowResolved] = useState(false);
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
@@ -152,6 +164,9 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
   const shownNotes = (versionPreview?.document ?? document)?.notes;
   const count = useMemo(() => document && deck ? studioSlideCount(shownHtml) : 0, [shownHtml, deck]);
   const sheets = useMemo(() => document ? styleBlocks(visibleHtml) : [], [visibleHtml]);
+  /** The Draw sub-tool is live: the draw layer takes the pointer and its bar floats over the canvas. */
+  const drawing = commenting && reviewMode === 'draw' && !versionPreview && !!document;
+  const drawingRef = useRef(drawing); drawingRef.current = drawing;
 
   useEffect(() => { try { localStorage.setItem('semurai-studio-chat-width', String(chatWidth)); } catch { /* Storage can be disabled. */ } }, [chatWidth]);
   useEffect(() => { if (!review) setReviewTarget(null); }, [review]);
@@ -165,20 +180,34 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
     if (target?.slideIndex !== undefined) navigateSlide(target.slideIndex);
     frame.current?.contentWindow?.postMessage({ type: 'od:comment-active-target', elementId: target?.elementId, selector: target?.selector }, '*');
   }
+  /** Runs `then` right away, or after "Discard the drawing?" when leaving Comment mode would drop unsent marks. */
+  function leaveComment(then: () => void) {
+    if (toolRef.current === 'comment' && drawRef.current.strokes.length) setDiscardDrawing({ then });
+    else then();
+  }
+  const leaveCommentRef = useRef(leaveComment); leaveCommentRef.current = leaveComment;
   function chooseTool(next: StudioTool) {
-    if (next !== 'select') setView('preview');
-    if (next === 'comment' && tool !== 'comment') setReviewArea(false);
-    if (next !== 'comment') setActiveCommentId(null);
-    setTool(next);
+    const apply = () => {
+      if (next !== 'select') setView('preview');
+      if (next === 'comment' && toolRef.current !== 'comment') setReviewMode('element');
+      if (next !== 'comment') setActiveCommentId(null);
+      setTool(next);
+    };
+    if (next !== 'comment') leaveComment(apply); else apply();
   }
   function chooseView(next: 'preview' | 'source') {
-    setView(next);
-    if (next === 'source') setTool('select');
+    if (next === 'source') leaveComment(() => { setView(next); setTool('select'); });
+    else setView(next);
+  }
+  /** Switches to the chat and appends `text` to the composer, caret at the end; nothing is sent. */
+  function prefillChat(text: string, trailingSpace = false) {
+    setTool('select'); setActiveCommentId(null);
+    setPrompt(previous => [previous.trim(), text.trim()].filter(Boolean).join('\n') + (trailingSpace ? ' ' : '')); requestKey.current = null;
+    setChatCollapsed(false); setShowChat(true);
+    requestAnimationFrame(() => { const input = promptInput.current; if (!input) return; input.focus(); input.setSelectionRange(input.value.length, input.value.length); });
   }
   function askSelection(target: ReviewTarget, text: string) {
-    setTool('select'); setActiveCommentId(null);
-    setAiTarget(target); setPrompt(previous => [previous.trim(), text.trim()].filter(Boolean).join('\n')); requestKey.current = null;
-    setChatCollapsed(false); setShowChat(true); requestAnimationFrame(() => promptInput.current?.focus());
+    leaveComment(() => { setAiTarget(target); prefillChat(text); });
   }
   function selectFile(file: string) {
     activeFileRef.current = file; previewScroll.current = emptyStudioPreviewScroll; setActiveFile(file); setSelected(null); setTargets([]); setSheet(0); setSlide(0);
@@ -206,6 +235,7 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
   useEffect(() => { try { localStorage.setItem('semurai-studio-inspector', inspectorMode); } catch {} }, [inspectorMode]);
   useEffect(() => { try { localStorage.setItem('semurai-studio-layers', layersOpen ? 'open' : 'closed'); } catch { /* Storage can be disabled. */ } }, [layersOpen]);
   useEffect(() => { if (tool !== 'select') { setChatCollapsed(false); setShowChat(true); } }, [tool]);
+  useEffect(() => { if (tool !== 'comment') dispatchDraw({ type: 'clear' }); }, [tool]);
   const focusedComment = comments.find(item => item.id === activeCommentId && (showResolved || !item.resolved));
   useEffect(() => { syncMarkers(); }, [zoom, device, chatWidth, chatCollapsed, presenting]);
   const commentsRef = useRef(comments); commentsRef.current = comments;
@@ -387,6 +417,33 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
     finally { setCapturing(false); }
   }
   const captureRef = useRef(capturePng); captureRef.current = capturePng;
+  /**
+   * "Send to chat" of the Draw sub-tool: the preview viewport (capped at
+   * STUDIO_ANNOTATION_MAX_SIDE) with the marks painted on top is uploaded
+   * through the Studio media endpoint, the same path as a composer
+   * attachment, and lands in the composer as a reference image with a
+   * prefilled note. Nothing is sent to the AI until the user sends.
+   */
+  async function sendDrawing() {
+    const strokes = drawRef.current.strokes;
+    if (drawSending || !strokes.length) return;
+    if (images.length >= 6) { setError(d.tooMany); return; }
+    setDrawSending(true); setError(''); setToast(null);
+    let blob: Blob;
+    try {
+      const shot = await captureStudioPng(frame.current?.contentWindow, { kind: 'viewport' }, { scale: STUDIO_ANNOTATION_SCALE, maxSide: STUDIO_ANNOTATION_MAX_SIDE });
+      blob = await composeStudioAnnotation(shot.blob, strokes, shot.plan);
+    } catch (reason) { setError(studioCaptureMessage(reason, k)); setDrawSending(false); return; }
+    try {
+      const image = (await api('media/upload', 'POST', { image_data: await studioBlobDataUrl(blob), title: d.imageTitle, description: d.imageDescription })).data as StudioImage;
+      if (!image || typeof image.id !== 'string') throw new Error(c.error);
+      setImages(previous => previous.some(item => item.id === image.id) ? previous : [...previous, image]);
+      dispatchDraw({ type: 'clear' });
+      prefillChat(d.note, true);
+    } catch {
+      setToast({ id: Date.now(), message: d.uploadFailed, tone: 'error', download: { blob, name: studioPngFileName(context.project.title, d.imageTitle) } });
+    } finally { setDrawSending(false); }
+  }
   async function copyPng(blob: Blob) {
     try { await copyStudioImage(blob); setToast({ id: Date.now(), message: k.copied }); }
     catch (reason) { setToast({ id: Date.now(), message: studioCaptureMessage(reason, k), tone: 'error', blob }); }
@@ -526,6 +583,9 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
       // Escape closes the innermost transient state first: pick mode, the restore question, the version preview.
       if (event.key === 'Escape' && pickingRef.current) { event.preventDefault(); pickElement(false); return; }
       if (event.key === 'Escape' && confirmRef.current) { event.preventDefault(); setConfirmRestore(null); return; }
+      if (event.key === 'Escape' && discardRef.current) { event.preventDefault(); setDiscardDrawing(null); return; }
+      // Escape ends drawing (a mark in progress first); the marks stay until Comment mode is left.
+      if (event.key === 'Escape' && drawingRef.current && !input) { event.preventDefault(); if (drawRef.current.draft) dispatchDraw({ type: 'cancel' }); else setReviewMode('element'); return; }
       if (event.key === 'Escape' && versionPreviewRef.current && !input) { setVersionPreview(null); return; }
       // An audience presentation is the fullscreen preview; slide keys drive the deck.
       if (deck && viewport.current && window.document.fullscreenElement === viewport.current) {
@@ -537,7 +597,7 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); if (!busy && !expired) void action(async () => { await saveCurrent(); }); }
       // Undo would change the hidden working document while a saved version is on screen.
       if (!input && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); if (!busy && !versionPreviewRef.current) travel(event.shiftKey ? 'redo' : 'undo'); }
-      if (event.key === 'Escape' && !input) { setTool('select'); setReviewTarget(null); setShowHistory(false); setShowExports(false); }
+      if (event.key === 'Escape' && !input) { leaveCommentRef.current(() => { setTool('select'); setReviewTarget(null); }); setShowHistory(false); setShowExports(false); }
     };
     window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key);
   }, [busy, expired, undo, redo]);
@@ -558,10 +618,12 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
   }, []);
   /** Audience presentation: the preview in fullscreen, optionally from a given slide. */
   function present(from?: number) {
-    setTool('select'); setShowHistory(false); setShowExports(false);
-    if (view === 'source') setView('preview');
-    if (deck && from !== undefined) navigateSlide(from);
-    requestAnimationFrame(() => { void viewport.current?.requestFullscreen?.()?.catch(() => setError(c.error)); });
+    leaveComment(() => {
+      setTool('select'); setShowHistory(false); setShowExports(false);
+      if (view === 'source') setView('preview');
+      if (deck && from !== undefined) navigateSlide(from);
+      requestAnimationFrame(() => { void viewport.current?.requestFullscreen?.()?.catch(() => setError(c.error)); });
+    });
   }
   function closeSession() {
     if (busy) return;
@@ -573,6 +635,8 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
   const historyLabel = saved ? `${c.history} · ${c.version} ${saved.version}` : c.history;
   const shortcutKey = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl';
   const sheetIndex = Math.min(sheet, Math.max(0, sheets.length - 1));
+  const currentDevice = DEVICES.find(([width]) => width === device) ?? DEVICES[0];
+  const DeviceIcon = currentDevice[2];
 
   const locale = context.project.uiLocale;
   const conversation = <>
@@ -599,7 +663,10 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
     {confirmRestore && <StudioConfirm title={h.confirmTitle.replace('{n}', String(confirmRestore.version))} cancel={h.confirmCancel} confirm={h.confirmRestore} busy={busy}
       onCancel={() => setConfirmRestore(null)} onConfirm={() => restoreVersion(confirmRestore)}>{h.confirmBody}</StudioConfirm>}
     {toast && <StudioToast key={toast.id} message={toast.message} detail={toast.detail} tone={toast.tone} closeLabel={k.dismiss}
-      action={toast.blob ? k.copy : undefined} onAction={() => { if (toast.blob) void copyPng(toast.blob); }} onClose={() => setToast(null)} />}
+      action={toast.download ? d.download : toast.blob ? k.copy : undefined} onClose={() => setToast(null)}
+      onAction={() => { if (toast.download) downloadStudioFile(toast.download.blob, toast.download.blob.type || 'image/png', toast.download.name, toast.download.blob.type === 'image/jpeg' ? '.jpg' : '.png'); else if (toast.blob) void copyPng(toast.blob); }} />}
+    {discardDrawing && <StudioConfirm title={d.confirmTitle} cancel={d.confirmCancel} confirm={d.confirmDiscard}
+      onCancel={() => setDiscardDrawing(null)} onConfirm={() => { const next = discardDrawing.then; setDiscardDrawing(null); dispatchDraw({ type: 'clear' }); next(); }}>{d.confirmBody}</StudioConfirm>}
     {presentation && <StudioPresenter source={presentation.document.html} notes={presentation.document.notes} initialSlide={presentation.slide} locale={locale} onClose={index => { setPresentation(null); navigateSlide(Math.min(index, Math.max(0, count - 1))); }} />}
 
     <aside id="studio-chat" className={styles.panel + (showChat ? ' ' + styles.panelVisible : '')} aria-label={modeLabel} data-tool={tool}>
@@ -619,11 +686,12 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
       </header>
       {tool === 'select' && conversation}
       {tool === 'comment' && <StudioReview comments={comments} onCommentsChange={setComments} resolved={showResolved} onResolvedChange={setShowResolved} activeCommentId={activeCommentId} locale={locale} file={activeFile} version={saved?.version ?? 0}
-        target={reviewTarget} disabled={busy || expired} api={api} onAsk={askSelection} onSelect={selectReview} area={reviewArea} onAreaChange={setReviewArea} />}
+        target={reviewTarget} disabled={busy || expired} api={api} onAsk={askSelection} onSelect={selectReview} selectMode={reviewMode} onSelectMode={setReviewMode} />}
       {tool === 'edit' && <StudioEditPanel locale={locale} source={visibleHtml} targets={targets} selected={selected} mode={inspectorMode} layersOpen={layersOpen} disabled={busy || expired}
         onMode={setInspectorMode} onLayersOpen={setLayersOpen} onSelect={pick} onPatch={patch} onPickImage={() => { if (document && selected) setImagePicker({ source: visibleHtml, target: selected, initialSource: 'library' }); }}
         onInsertImage={deck ? undefined : initialSource => { if (document) setImagePicker({ source: visibleHtml, target: selected, initialSource }); }}
-        onExportPng={() => { if (selected) void capturePng({ kind: 'element', elementId: selected.id }); }} exportBusy={capturing || picking} />}
+        onExportPng={() => { if (selected) void capturePng({ kind: 'element', elementId: selected.id }); }} exportBusy={capturing || picking}
+        onSource={html => { if (latest.current && html !== studioFileSource(latest.current, activeFileRef.current)) change({ ...latest.current, html }); }} onAskAi={text => prefillChat(text)} />}
     </aside>
     <div className={styles.resizeHandle} role="separator" aria-orientation="vertical" aria-label={r.resize} aria-controls="studio-chat" aria-valuemin={280} aria-valuemax={640} aria-valuenow={Math.round(chatWidth)} tabIndex={0}
       onDoubleClick={() => setChatWidth(390)} onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); setChatWidth(value => Math.max(280, Math.min(640, value + (event.key === 'ArrowLeft' ? -20 : 20)))); } }}
@@ -644,9 +712,9 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
             <StudioButton aria-pressed={view === 'preview'} aria-label={c.preview} title={c.preview} onClick={() => chooseView('preview')}><Eye size={16} /><span className={styles.viewLabel}>{c.preview}</span></StudioButton>
             <StudioButton aria-pressed={view === 'source'} aria-label={c.source} title={c.source} disabled={!!versionPreview} onClick={() => chooseView('source')}><Code2 size={16} /><span className={styles.viewLabel}>{c.source}</span></StudioButton>
           </StudioButtonGroup>
-          <StudioButtonGroup label={c.devices}>
-            {DEVICES.map(([width, key, Icon]) => <StudioButton key={key} icon aria-pressed={device === width} title={c[key]} aria-label={c[key]} onClick={() => setDevice(width)}><Icon size={16} /></StudioButton>)}
-          </StudioButtonGroup>
+          <StudioMenu label={c.devices} title={c.devices + ': ' + c[currentDevice[1]]} ariaLabel={c.devices + ': ' + c[currentDevice[1]]} icon trigger={<DeviceIcon size={16} />}>
+            {DEVICES.map(([width, key, Icon]) => <StudioMenuItem key={key} icon={<Icon size={16} />} checked={device === width} hint={width ? width + ' px' : '100%'} onSelect={() => setDevice(width)}>{c[key]}</StudioMenuItem>)}
+          </StudioMenu>
         </div>
         <div className={styles.barEnd}>
           <span className={styles.saveState} aria-live="polite">{dirty ? c.unsaved : c.saved}</span>
@@ -675,7 +743,7 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
           </StudioMenu>
           <StudioButton icon aria-pressed={showHistory} title={historyLabel} aria-label={historyLabel} onClick={() => { setShowHistory(!showHistory); setShowExports(false); }}><History size={16} /></StudioButton>
           <StudioButton variant="secondary" disabled={!dirty || busy || expired || !!active || !!versionPreview} onClick={() => { void action(async () => { await saveCurrent(); }); }}>{video ? v.save : c.save}</StudioButton>
-          <StudioMenu label={c.exportMenu} variant="primary" align="end" trigger={<><Download size={16} /><span>{c.export}</span></>}>
+          <StudioMenu label={c.exportMenu} title={c.export} ariaLabel={c.export} variant="primary" align="end" trigger={<><Download size={16} /><span className={styles.exportLabel}>{c.export}</span></>}>
             {video && <StudioMenuItem icon={<Film size={16} />} disabled={!document || busy || expired || !!active} onSelect={() => { void downloadVideo(); }}>MP4</StudioMenuItem>}
             <StudioMenuItem icon={<FileCode2 size={16} />} disabled={!document || busy} onSelect={() => { void exportFile('html'); }}>{c.downloadHtml}</StudioMenuItem>
             {deck && <StudioMenuItem icon={<Presentation size={16} />} disabled={!document || busy} onSelect={() => { void exportFile('pptx'); }}>{c.downloadPptx}</StudioMenuItem>}
@@ -717,6 +785,7 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
         </aside>}
 
         <div ref={stage} className={styles.stage + (mode === 'source' ? ' ' + styles.stageSource : '')} onScroll={syncMarkers}>
+          {drawing && !picking && <StudioDrawBar copy={d} state={draw} dispatch={dispatchDraw} busy={drawSending} disabled={expired} onSend={() => { void sendDrawing(); }} />}
           {loading ? <div className={styles.empty}>{c.loading}</div>
             : !document ? <div className={styles.empty}><Sparkles size={16} /><h2>{c.empty}</h2><p>{c.emptyHelp}</p></div>
             : mode === 'source' ? <div className={styles.sourceEditor}>
@@ -743,6 +812,7 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
                 }
                 setAreaBox(undefined);
               }} onPointerCancel={() => { areaStart.current = null; setAreaBox(undefined); }}>{areaBox && <div className={styles.selectionBox} style={{ left: areaBox.x, top: areaBox.y, width: areaBox.width, height: areaBox.height }} />}</div>}
+              {commenting && !versionPreview && (drawing || draw.strokes.length > 0) && <StudioDrawLayer state={draw} dispatch={dispatchDraw} zoom={zoom} active={drawing && !picking && !drawSending} label={d.layer} />}
               <iframe ref={frame} title={c.preview} sandbox="allow-scripts allow-modals" srcDoc={srcdoc} onLoad={() => { reselect.current = true; frame.current?.contentWindow?.postMessage({ type: 'od-edit-mode', enabled: mode === 'edit' }, '*'); if (pickingRef.current) frame.current?.contentWindow?.postMessage({ type: 'semurai:capture-pick', enabled: true }, '*'); if (video) seekVideo(videoTimeRef.current); setFrameReady(value => value + 1); }} />
             </div>}
           {deck && document && mode !== 'source' && <label className={styles.notes}><span>{c.notes} · {slide + 1}/{count}</span><textarea value={shownNotes?.[slide] ?? ''} placeholder={c.notes} readOnly={!!versionPreview} onChange={event => { const notes = Array.from({ length: count }, (_, index) => document.notes?.[index] ?? ''); notes[slide] = event.target.value; change({ ...document, notes }); }} /></label>}
@@ -758,7 +828,7 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
             const source = studioVersionSource(version.kind), summary = studioVersionSummary(version, jobs);
             // The current version is the working document: choosing it closes a preview.
             return <button key={version.id} type="button" className={styles.versionRow} aria-current={current ? 'true' : undefined} aria-pressed={previewing}
-              disabled={versionLoading === version.id} onClick={() => { if (current) setVersionPreview(null); else void openVersion(version); }}>
+              disabled={versionLoading === version.id} onClick={() => { if (current) setVersionPreview(null); else leaveComment(() => { void openVersion(version); }); }}>
               <span className={styles.versionHead}><strong>{c.version} {version.version}</strong><span className={styles.versionSource} data-source={source}>{h[source]}</span>
                 {current && <span className={styles.drawerCurrent}>{c.currentVersion}</span>}{previewing && <span className={styles.versionPreviewing}>{h.previewing}</span>}
                 {versionLoading === version.id && <Loader2 size={14} className={styles.spinning} />}</span>

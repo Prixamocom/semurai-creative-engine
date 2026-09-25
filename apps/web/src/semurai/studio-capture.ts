@@ -8,6 +8,8 @@
 
 export type StudioCaptureTarget =
   | { kind: 'page' }
+  /** What the preview shows right now: its visible viewport at the current scroll. */
+  | { kind: 'viewport' }
   | { kind: 'slide'; index: number }
   | { kind: 'element'; elementId?: string; selector?: string };
 
@@ -129,10 +131,10 @@ function exchange(frame: Window, message: Record<string, unknown>, reply: string
 export interface StudioCaptureResult { blob: Blob; plan: StudioCapturePlan; label: string }
 
 /** Measure, plan and render one PNG in the preview frame. */
-export async function captureStudioPng(frame: Window | null | undefined, target: StudioCaptureTarget, options: { scale?: number; measureTimeoutMs?: number; renderTimeoutMs?: number } = {}): Promise<StudioCaptureResult> {
+export async function captureStudioPng(frame: Window | null | undefined, target: StudioCaptureTarget, options: { scale?: number; maxSide?: number; measureTimeoutMs?: number; renderTimeoutMs?: number } = {}): Promise<StudioCaptureResult> {
   if (!frame) throw new StudioCaptureError('unavailable');
   const measured = readMeasure(await exchange(frame, { type: 'semurai:capture-measure', target }, 'semurai:capture-measure:result', options.measureTimeoutMs ?? STUDIO_CAPTURE_MEASURE_TIMEOUT_MS, 'unavailable'));
-  const plan = studioCapturePlan(measured, { scale: options.scale });
+  const plan = studioCapturePlan(measured, { scale: options.scale, maxSide: options.maxSide });
   if (!plan) throw new StudioCaptureError('empty');
   const rendered = await exchange(frame, { type: 'semurai:capture-render', clip: plan.clip, document: plan.document, stage: plan.stage, width: plan.width, height: plan.height, background: measured.background },
     'semurai:capture-render:result', options.renderTimeoutMs ?? STUDIO_CAPTURE_RENDER_TIMEOUT_MS, 'timeout');

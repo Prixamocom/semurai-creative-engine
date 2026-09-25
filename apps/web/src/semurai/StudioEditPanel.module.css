@@ -106,3 +106,7 @@ select.fieldInput { appearance: none; padding-right: 16px; cursor: pointer; }
 .codeInput:focus { outline: 0; border-color: var(--studio-accent); box-shadow: var(--studio-focus); }
 .codeInput[aria-invalid] { border-color: var(--studio-danger); }
 .codeFooter { display: flex; align-items: center; justify-content: space-between; gap: var(--studio-space-3); }
+
+/* Tweaks tab: the variables hint sits between the page knobs and the groups. */
+.tweaksHint { margin: 0; padding: var(--studio-space-3) var(--studio-space-3) 0; border-top: 1px solid var(--studio-border); color: var(--studio-text-tertiary); font-size: var(--studio-text-sm); line-height: 16px; }
+.tweaksHint + .section { border-top: 0; }

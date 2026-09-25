@@ -1,23 +1,28 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { MessageSquare, MousePointer2, Scan, Sparkles, X } from 'lucide-react';
+import { MessageSquare, MousePointer2, PenLine, Scan, Sparkles, X } from 'lucide-react';
 import { reviewCopy, type ReviewTarget, type StudioComment } from './studio-review';
 import styles from './StudioReview.module.css';
 import { StudioCommentThread } from './StudioCommentThread';
 import { StudioButton, StudioButtonGroup } from './StudioButton';
+import { studioDrawCopy } from './studio-editor-copy';
+
+export type StudioReviewSelectMode = 'element' | 'area' | 'draw';
 
 /**
  * Comments panel shown in the Studio side panel while the Comment tool is
- * active. The Element / Area toggle picks how the preview selects a target.
+ * active. The Element / Area / Draw toggle picks how the preview is used:
+ * select an element, drag an area, or draw marks to send to the chat.
  */
-export function StudioReview({ locale, file, version, target, disabled, api, onAsk, onSelect, comments, onCommentsChange, resolved, onResolvedChange, activeCommentId, area = false, onAreaChange }: {
+export function StudioReview({ locale, file, version, target, disabled, api, onAsk, onSelect, comments, onCommentsChange, resolved, onResolvedChange, activeCommentId, selectMode = 'element', onSelectMode }: {
   locale: 'pl' | 'en' | 'de'; file: string; version: number; target: ReviewTarget | null; disabled: boolean;
   api: (path: string, method?: string, body?: unknown) => Promise<{ data: StudioComment[] }>;
   comments: StudioComment[]; onCommentsChange: (comments: StudioComment[]) => void; resolved: boolean; onResolvedChange: (value: boolean) => void; activeCommentId: string | null;
   onAsk: (target: ReviewTarget, text: string) => void; onSelect: (target: ReviewTarget | null, id?: string) => void; onClose?: () => void;
-  area?: boolean; onAreaChange?: (area: boolean) => void;
+  selectMode?: StudioReviewSelectMode; onSelectMode?: (mode: StudioReviewSelectMode) => void;
 }) {
   const c = reviewCopy[locale];
+  const d = studioDrawCopy[locale];
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false); const [error, setError] = useState('');
   const requestId = useRef<string | null>(null);
@@ -35,11 +40,12 @@ export function StudioReview({ locale, file, version, target, disabled, api, onA
   const numbered = comments.filter(item => item.target.file === file).map((item, index) => ({ ...item, number: index + 1 }));
   const visible = numbered.filter(item => resolved || !item.resolved);
   return <section ref={panel} className={styles.panel} aria-label={c.comments}>
-    {onAreaChange && <StudioButtonGroup label={c.selectBy} className={styles.modes}>
-      <StudioButton aria-pressed={!area} title={c.select} onClick={() => onAreaChange(false)}><MousePointer2 size={16} />{c.element}</StudioButton>
-      <StudioButton aria-pressed={area} title={c.area} onClick={() => onAreaChange(true)}><Scan size={16} />{c.areaShort}</StudioButton>
+    {onSelectMode && <StudioButtonGroup label={c.selectBy} className={styles.modes}>
+      <StudioButton aria-pressed={selectMode === 'element'} title={c.select} onClick={() => onSelectMode('element')}><MousePointer2 size={16} />{c.element}</StudioButton>
+      <StudioButton aria-pressed={selectMode === 'area'} title={c.area} onClick={() => onSelectMode('area')}><Scan size={16} />{c.areaShort}</StudioButton>
+      <StudioButton aria-pressed={selectMode === 'draw'} title={d.drawTitle} onClick={() => onSelectMode('draw')}><PenLine size={16} />{d.draw}</StudioButton>
     </StudioButtonGroup>}
-    <p className={styles.hint}>{c.hint}</p>
+    <p className={styles.hint}>{selectMode === 'draw' ? d.hint : c.hint}</p>
     <div className={styles.selection}><span>{selection.label}</span><small>{selection.file}{selection.slideIndex === undefined ? '' : ` · ${selection.slideIndex + 1}`}</small>{target && <StudioButton icon className={styles.selectionClear} title={c.remove} aria-label={c.remove} onClick={() => onSelect(null)}><X size={16} /></StudioButton>}</div>
     {selection.version !== version && <p role="status" className={styles.hint}>{c.stale}</p>}
     <textarea className={styles.input} aria-label={c.placeholder} placeholder={c.placeholder} maxLength={4000} value={text} onChange={event => setText(event.target.value)} />
