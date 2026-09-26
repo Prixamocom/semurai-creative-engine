@@ -48,12 +48,10 @@
 .threads { display: grid; gap: var(--studio-space-2); }
 .thread { padding: var(--studio-space-3); border: 1px solid var(--studio-border); border-radius: var(--studio-radius-lg); background: var(--studio-surface-raised); }
 .thread[data-active] { border-color: var(--studio-accent); box-shadow: inset 0 0 0 1px var(--studio-accent); }
-.thread[data-resolved] { opacity: .7; }
 .anchor { display: flex; align-items: center; gap: var(--studio-space-2); max-width: 100%; height: var(--studio-control-h); padding: 0; border: 0; background: transparent; color: var(--studio-text); font: inherit; font-size: var(--studio-text-md); font-weight: 500; cursor: pointer; }
 .anchor.anchor:hover { background: transparent; color: var(--studio-accent); }
 .number { display: inline-grid; flex-shrink: 0; place-items: center; min-width: 20px; height: 20px; padding: 0 var(--studio-space-1); border-radius: 10px 10px 10px 3px; background: var(--studio-accent); color: var(--studio-on-accent); font-size: var(--studio-text-sm); font-weight: 600; }
 .anchorLabel { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.resolved { flex-shrink: 0; color: var(--studio-text-tertiary); font-size: var(--studio-text-sm); }
 .avatar { display: inline-grid; flex-shrink: 0; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--studio-track); color: var(--studio-text); font-size: var(--studio-text-sm); font-weight: 600; }
 .thread .message { padding: var(--studio-space-2) 0; }
 .thread .message > div { display: flex; align-items: center; gap: var(--studio-space-2); }

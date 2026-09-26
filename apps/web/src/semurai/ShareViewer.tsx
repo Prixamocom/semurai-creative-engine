@@ -6,7 +6,7 @@ import { StudioBadge, StudioButton, StudioMenu, StudioMenuItem } from './StudioB
 import { ShareComments } from './ShareComments';
 import { studioDocumentTitle } from './studio-context';
 import { studioPreviewSource, studioSlideCount } from './studio-preview';
-import { ShareRequestError, shareRequest, shareTokenFromPath, shareUiLocale, shareViewerCopy, type PublicComment, type ShareLocale, type SharePayload } from './studio-share';
+import { browserUiLocale, ShareRequestError, shareRequest, shareTokenFromPath, shareViewerCopy, type PublicComment, type ShareLocale, type SharePayload } from './studio-share';
 import type { ReviewTarget } from './studio-review';
 import type { StudioTheme } from './studio-theme';
 import './studio.css';
@@ -50,7 +50,7 @@ export function SemuraiShareViewer({ token: tokenProp, fetcher }: { token?: stri
   }, [fetcher]);
   useEffect(() => {
     // The static shell is prerendered without a locale; the browser language and the token apply on mount.
-    setLocale(shareUiLocale(navigator.languages?.length ? navigator.languages : [navigator.language]));
+    setLocale(browserUiLocale());
     const value = tokenProp ?? shareTokenFromPath(window.location.pathname);
     setToken(value);
     if (value) void load(value); else setState({ kind: 'error', failure: 'gone' });
@@ -112,10 +112,10 @@ function SharedProject({ token, locale, theme, data, fetcher, onGone }: {
     return () => window.removeEventListener('focus', focus);
   }, [readComments]);
 
-  // Comment pins in the preview: this file's threads, on decks only those of the slide on screen.
+  // Comment pins in the preview: this file's threads (the public API lists open ones only), on decks only those of the slide on screen.
   const markers = useMemo(() => comments.filter(item => (item.target?.file ?? 'index.html') === file)
-    .map((item, index) => ({ id: item.id, text: item.text, resolved: item.resolved, target: item.target, number: index + 1, label: c.comments }))
-    .filter(item => !item.resolved && (!deck || item.target.slideIndex === undefined || item.target.slideIndex === slide)), [comments, file, deck, slide, c.comments]);
+    .map((item, index) => ({ id: item.id, text: item.text, resolved: false, target: item.target, number: index + 1, label: c.comments }))
+    .filter(item => !deck || item.target.slideIndex === undefined || item.target.slideIndex === slide), [comments, file, deck, slide, c.comments]);
   const markerState = useRef({ items: markers, selected: activeId }); markerState.current = { items: markers, selected: activeId };
   const syncMarkers = useCallback(() => {
     if (commenting) post({ type: 'semurai:comment-markers', items: markerState.current.items, enabled: true, selected: markerState.current.selected });
@@ -156,7 +156,7 @@ function SharedProject({ token, locale, theme, data, fetcher, onGone }: {
   function selectFile(next: string) { setFile(next); setSlide(0); setActiveId(null); }
   const currentDevice = DEVICES.find(([width]) => width === device) ?? DEVICES[0];
   const DeviceIcon = currentDevice[2];
-  const open = comments.filter(item => !item.resolved && (item.target?.file ?? 'index.html') === file).length;
+  const open = comments.filter(item => (item.target?.file ?? 'index.html') === file).length;
 
   return <main className={tokens.tokens + ' ' + styles.viewer + (commenting && panel ? ' ' + styles.withPanel : '')} data-studio-theme={theme} lang={locale} data-testid="share-viewer">
     <header className={styles.topbar}>

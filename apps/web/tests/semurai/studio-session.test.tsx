@@ -146,3 +146,48 @@ describe('Studio session expiry', () => {
     expect((screen.getByRole('textbox', { name: 'Project source' }) as HTMLTextAreaElement).value).toContain('Hello');
   });
 });
+
+describe('Studio screens before the context', () => {
+  const languages = Object.getOwnPropertyDescriptor(navigator, 'languages');
+  const setLanguages = (value: string[]) => Object.defineProperty(navigator, 'languages', { configurable: true, value });
+  afterEach(() => {
+    cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks();
+    if (languages) Object.defineProperty(navigator, 'languages', languages); else delete (navigator as { languages?: unknown }).languages;
+  });
+
+  it('opens the project in the browser language, as the share viewer does', async () => {
+    setLanguages(['de-AT', 'en']);
+    window.history.replaceState({}, '', PATH);
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => {})));
+    render(<SemuraiStudio />);
+    expect((await screen.findByRole('status')).textContent).toBe('Projekt wird geöffnet…');
+    expect(screen.getByTestId('semurai-studio').getAttribute('lang')).toBe('de');
+  });
+
+  it('explains a missing or refused session in the browser language', async () => {
+    setLanguages(['pl-PL']);
+    window.history.replaceState({}, '', PATH);
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 401 })));
+    render(<SemuraiStudio />);
+    await screen.findByText('Ta sesja Studio wygasła.');
+    expect(screen.getByRole('link', { name: 'Wróć do projektu' })).toBeTruthy();
+    cleanup();
+    setLanguages(['fr-FR']);
+    window.history.replaceState({}, '', '/studio/not-a-session/');
+    render(<SemuraiStudio />);
+    await screen.findByText('This Studio session has expired.');
+  });
+
+  it('switches to the project UI language once the context arrives', async () => {
+    setLanguages(['de-DE']);
+    window.history.replaceState({}, '', PATH);
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => String(url).endsWith('/context')
+      ? new Response(JSON.stringify({ projectId: '11111111-2222-4333-8444-555555555555', workspaceId: 'workspace', returnUrl: 'https://core.test/app/chat/creative',
+        expiresAt: Date.now() + 3_600_000, sessionExpiresAt: Date.now() + 3_600_000,
+        project: { title: 'Landing', artifactType: 'page', locale: 'pl', sourceLocale: 'pl', uiLocale: 'pl', direction: 'ltr', currentVersion: 1, coreOrigin: 'https://core.test' } }))
+      : new Response(JSON.stringify({ data: [] }))));
+    render(<SemuraiStudio />);
+    await screen.findByTestId('semurai-studio-editor');
+    expect(screen.getByTestId('semurai-studio-editor').getAttribute('lang')).toBe('pl');
+  });
+});

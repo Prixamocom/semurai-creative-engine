@@ -104,11 +104,19 @@ export function devDocument(fixture: DevFixture) {
     : { version: 1, kind: 'page', name: 'Lumen', html: DEV_LANDING_HTML, files: [{ path: 'o-nas.html', content: DEV_ABOUT_HTML }], notes: [] };
 }
 
-/** Seed comments: one open and one resolved, so the counts can be checked. */
+/**
+ * Seed comments: one open and one resolved, so the counts can be checked. The
+ * deck gets share-link guest comments on slides 1 and 2, so each slide shows
+ * only its own pin.
+ */
 export function devComments(fixture: DevFixture) {
   const created_at = new Date().toISOString();
   const target = (label: string, selector: string) => ({ file: 'index.html', version: 1, label, selector, text: '' });
-  return fixture === 'deck' ? [] : [
+  const slideTarget = (slideIndex: number) => ({ file: 'index.html', version: 1, label: 'Slajd ' + (slideIndex + 1), selector: 'body', text: '', slideIndex });
+  return fixture === 'deck' ? [
+    { id: 'dev-comment-deck-1', text: 'Czy możemy dodać zdjęcie zespołu?', target: slideTarget(0), resolved: false, revision: 1, author: 'Marta (klient)', author_kind: 'guest' as const, created_at, replies: [] },
+    { id: 'dev-comment-deck-2', text: 'Te liczby warto pokazać na wykresie.', target: slideTarget(1), resolved: false, revision: 1, author: 'Marta (klient)', author_kind: 'guest' as const, created_at, replies: [] },
+  ] : [
     { id: 'dev-comment-1', text: 'Nagłówek jest za długi, skróćmy go do jednej linii.', target: target('h1', '.hero h1'), resolved: false, revision: 1, author: 'Anna', created_at, replies: [] },
     { id: 'dev-comment-2', text: 'Cennik wygląda dobrze.', target: target('h2', '.pricing h2'), resolved: true, revision: 1, author: 'Anna', created_at, replies: [] },
   ];
@@ -139,12 +147,13 @@ export function devShares(): ShareItem[] {
 export function devShareFetch(fixture: DevFixture, mode: 'comment' | 'view' | 'gone' | 'limited'): typeof fetch {
   const document = devDocument(fixture);
   const created_at = new Date(Date.now() - 7_200_000).toISOString();
+  // As the public API answers: open threads only, member names withheld (author null).
   let comments: PublicComment[] = [
     { id: 'dev-share-1', text: 'Czy możemy dodać zdjęcie zespołu?', target: { file: 'index.html', version: 1, label: fixture === 'deck' ? 'Slajd 1' : 'Cała strona', selector: 'body', text: '', ...(fixture === 'deck' ? { slideIndex: 0 } : {}) },
       resolved: false, revision: 2, created_at, author: 'Marta (klient)', author_kind: 'guest',
-      replies: [{ id: 'dev-share-1-r', text: 'Tak, dodamy w kolejnej wersji.', author: 'Anna', author_kind: 'member', created_at }] },
+      replies: [{ id: 'dev-share-1-r', text: 'Tak, dodamy w kolejnej wersji.', author: null, author_kind: 'member', created_at }] },
     { id: 'dev-share-2', text: 'Nagłówek jest za długi.', target: { file: 'index.html', version: 1, label: 'h1', selector: fixture === 'deck' ? '.slide h1' : '.hero h1', text: '' },
-      resolved: false, revision: 1, created_at, author: 'Anna', author_kind: 'member', replies: [] },
+      resolved: false, revision: 1, created_at, author: null, author_kind: 'member', replies: [] },
   ];
   const json = (data: unknown, status = 200) => new Response(JSON.stringify(status === 404 ? { error: 'creative.share_not_found' } : { data }), { status, headers: { 'Content-Type': 'application/json' } });
   return async (input: RequestInfo | URL, init?: RequestInit) => {

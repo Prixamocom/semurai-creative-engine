@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { MessageSquare, Send } from 'lucide-react';
+import { MessageSquare, Send, UserRound } from 'lucide-react';
 import { StudioButton } from './StudioButton';
 import { readGuestName, shareGuestTarget, ShareRequestError, shareRequest, shareViewerCopy, writeGuestName, type PublicComment, type ShareLocale } from './studio-share';
 import type { ReviewTarget } from './studio-review';
@@ -15,11 +15,15 @@ function when(value: string | null, locale: ShareLocale): string {
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleString(locale, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-/** One entry of a thread; guest entries carry the "Guest" badge (plain React text, never HTML). */
+/**
+ * One entry of a thread (plain React text, never HTML). Guest entries show the
+ * guest's name and the "Guest" badge; workspace members stay anonymous behind
+ * the "Project author" label, as the public API never sends their names.
+ */
 function Message({ author, guest, createdAt, text, c, locale }: { author: string | null; guest: boolean; createdAt: string | null; text: string; c: Copy; locale: ShareLocale }) {
-  const name = author || c.guest;
-  return <div className={styles.message}>
-    <div><span className={styles.avatar} aria-hidden="true">{name.slice(0, 1).toUpperCase()}</span><strong>{name}</strong>
+  const name = guest ? author || c.guest : c.member;
+  return <div className={styles.message} data-author-kind={guest ? 'guest' : 'member'}>
+    <div><span className={styles.avatar} aria-hidden="true">{guest ? name.slice(0, 1).toUpperCase() : <UserRound size={12} />}</span><strong>{name}</strong>
       {guest && <span className={styles.guest}>{c.guest}</span>}{createdAt && <time dateTime={createdAt}>{when(createdAt, locale)}</time>}</div>
     <p>{text}</p>
   </div>;
@@ -100,10 +104,9 @@ export function ShareComments({ token, locale, comments, onComments, file, versi
     </form>
     <div ref={list} className={styles.threads}>
       {!threads.length && <p className={styles.muted}>{c.noComments}</p>}
-      {threads.map(thread => <article key={thread.id} data-comment-id={thread.id} className={styles.thread} data-active={thread.id === activeId || undefined} data-resolved={thread.resolved || undefined}>
+      {threads.map(thread => <article key={thread.id} data-comment-id={thread.id} className={styles.thread} data-active={thread.id === activeId || undefined}>
         <button type="button" className={styles.anchor} onClick={() => onSelect(thread.target, thread.id)}>
           <span className={styles.number}>{thread.number}</span><span className={styles.anchorLabel}>{thread.target?.label}</span>
-          {thread.resolved && <span className={styles.resolved}>{c.resolved}</span>}
         </button>
         <Message author={thread.author} guest={thread.author_kind === 'guest'} createdAt={thread.created_at} text={thread.text} c={c} locale={locale} />
         {(thread.replies ?? []).map(reply => <Message key={reply.id} author={reply.author} guest={reply.author_kind === 'guest'} createdAt={reply.created_at} text={reply.text} c={c} locale={locale} />)}

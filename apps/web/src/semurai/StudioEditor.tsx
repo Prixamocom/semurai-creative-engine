@@ -34,7 +34,7 @@ import { StudioEditPanel, type StudioInspectorMode } from './StudioEditPanel';
 import { studioPageStyles, type StudioPageStyles } from './studio-edit-values';
 import { StudioCommentThread } from './StudioCommentThread';
 import { StudioShareButton } from './StudioShareDialog';
-import { readReviewTarget, reviewBrief, reviewCopy, type ReviewTarget, type StudioComment } from './studio-review';
+import { readReviewTarget, reviewBrief, reviewCopy, STUDIO_COMMENT_POLL_MS, studioCommentOnSlide, type ReviewTarget, type StudioComment } from './studio-review';
 
 interface StudioDocument { version: 1; kind: string; name: string; html: string; files?: { path: string; content: string }[]; notes: (string | null)[]; brandContextHash?: string }
 interface SavedSource { id: string; version: number; document: StudioDocument; document_hash: string }
@@ -239,16 +239,59 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath, s
     return response.json();
   }, [path, c]);
 
+  // Comment writes (create, reply, resolve) bump the epoch, so a read that
+  // started before a write never replaces its newer answer.
+  const commentsEpoch = useRef(0);
+  const commentsReading = useRef(false);
+  const applyComments = useCallback((next: StudioComment[]) => { commentsEpoch.current += 1; setComments(next); }, []);
+  /**
+   * Re-reads the comments; one read at a time (an overlapping call is skipped
+   * and reports success). The list is replaced only when the server data
+   * differs, so an unchanged poll re-renders nothing; reply drafts live in the
+   * thread components (keyed by comment id) and are never touched.
+   */
+  const readComments = useCallback(async (): Promise<boolean> => {
+    if (commentsReading.current) return true;
+    commentsReading.current = true;
+    const epoch = commentsEpoch.current;
+    try {
+      const next = (await api('comments')).data as StudioComment[];
+      if (epoch === commentsEpoch.current) setComments(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next);
+      return true;
+    } catch { return false; }
+    finally { commentsReading.current = false; }
+  }, [api]);
   useEffect(() => {
     let live = true;
     // A transient failure (e.g. right after a service restart) retries once quietly.
-    const read = (retry = true) => { void api('comments').then(result => { if (live) setComments(result.data); }).catch(() => { if (!live) return; if (retry) setTimeout(() => { if (live) read(false); }, 2000); else setError(r.loadError); }); };
+    const read = (retry = true) => { void readComments().then(ok => { if (!live || ok) return; if (retry) setTimeout(() => { if (live) read(false); }, 2000); else setError(r.loadError); }); };
     const onFocus = () => read();
     read(); window.addEventListener('focus', onFocus);
     return () => { live = false; window.removeEventListener('focus', onFocus); };
-  }, [api, r.loadError]);
+  }, [readComments, r.loadError]);
+  // Live comments: while the Comment tool is open and the tab is visible, read
+  // right away and then every STUDIO_COMMENT_POLL_MS; other tools and hidden
+  // tabs stop the polling (focus still refreshes, see above).
+  const pollComments = tool === 'comment' && !expired;
+  useEffect(() => {
+    if (!pollComments) return;
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const stop = () => { if (timer !== undefined) clearInterval(timer); timer = undefined; };
+    const start = () => {
+      stop();
+      if (window.document.visibilityState !== 'visible') return;
+      void readComments();
+      timer = setInterval(() => { void readComments(); }, STUDIO_COMMENT_POLL_MS);
+    };
+    const visibility = () => { if (window.document.visibilityState === 'visible') start(); else stop(); };
+    start();
+    window.document.addEventListener('visibilitychange', visibility);
+    return () => { stop(); window.document.removeEventListener('visibilitychange', visibility); };
+  }, [pollComments, readComments]);
   const fileComments = comments.filter(item => item.target.file === activeFile);
-  const markerItems = fileComments.map((item, index) => ({ ...item, number: index + 1, label: r.comments })).filter(item => showResolved || !item.resolved);
+  // Numbers follow the whole file's list (as in the panel); on decks a slide shows only its own pins.
+  const markerItems = fileComments.map((item, index) => ({ ...item, number: index + 1, label: r.comments }))
+    .filter(item => (showResolved || !item.resolved) && studioCommentOnSlide(item, deck, slide));
   const markersState = useRef({ items: markerItems, enabled: true, selected: activeCommentId });
   markersState.current = { items: markerItems, enabled: mode === 'preview' && !presenting && !versionPreview, selected: activeCommentId };
   function syncMarkers() {
@@ -264,7 +307,7 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath, s
   useEffect(() => {
     syncMarkers();
     frame.current?.contentWindow?.postMessage({ type: 'od:comment-mode', enabled: !!review }, '*');
-  }, [comments, activeFile, showResolved, activeCommentId, mode, review, frameReady]);
+  }, [comments, activeFile, showResolved, activeCommentId, mode, review, frameReady, slide]);
   useEffect(() => { setActiveCommentId(null); }, [activeFile]);
 
   function adopt(value: SavedSource | null) {
@@ -710,7 +753,7 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath, s
         </StudioMenu>
       </header>
       {tool === 'select' && conversation}
-      {tool === 'comment' && <StudioReview comments={comments} onCommentsChange={setComments} resolved={showResolved} onResolvedChange={setShowResolved} activeCommentId={activeCommentId} locale={locale} file={activeFile} version={saved?.version ?? 0}
+      {tool === 'comment' && <StudioReview comments={comments} onCommentsChange={applyComments} resolved={showResolved} onResolvedChange={setShowResolved} activeCommentId={activeCommentId} locale={locale} file={activeFile} version={saved?.version ?? 0}
         target={reviewTarget} disabled={busy || expired} api={api} onAsk={askSelection} onSelect={selectReview} selectMode={reviewMode} onSelectMode={setReviewMode} />}
       {tool === 'edit' && <StudioEditPanel locale={locale} source={visibleHtml} targets={targets} selected={selected} mode={inspectorMode} layersOpen={layersOpen} disabled={busy || expired}
         onMode={setInspectorMode} onLayersOpen={setLayersOpen} onSelect={pick} onPatch={patch} onPickImage={() => { if (document && selected) setImagePicker({ source: visibleHtml, target: selected, initialSource: 'library' }); }}
@@ -846,7 +889,7 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath, s
         </div>
         {review && focusedComment && commentPoint && <section className={styles.commentPopover} data-testid="studio-comment-popover" aria-label={r.comments} style={{ left: commentPoint.x, top: commentPoint.y, maxHeight: `min(520px, 55vh, calc(100% - ${commentPoint.y + 8}px))` }}>
           <header><strong>{focusedComment.target.label}</strong><StudioButton icon title={c.close} aria-label={c.close} onClick={() => { setActiveCommentId(null); setCommentPoint(null); }}><X size={16} /></StudioButton></header>
-          <StudioCommentThread key={focusedComment.id} comment={focusedComment} locale={locale} disabled={busy || expired} api={api} onChange={setComments} onAsk={text => askSelection(focusedComment.target, text)} />
+          <StudioCommentThread key={focusedComment.id} comment={focusedComment} locale={locale} disabled={busy || expired} api={api} onChange={applyComments} onAsk={text => askSelection(focusedComment.target, text)} />
         </section>}
         {showHistory && <aside className={styles.drawer} aria-label={c.history}>
           <header className={styles.drawerHead}><div><h3>{c.history}</h3>{saved && <small>{c.version} {saved.version}</small>}</div><StudioButton icon title={c.close} aria-label={c.close} onClick={() => setShowHistory(false)}><X size={16} /></StudioButton></header>

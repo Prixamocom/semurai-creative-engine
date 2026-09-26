@@ -29,7 +29,9 @@ export interface SharePayload {
   project: { title: string; artifact_type: string; locale: string; direction: 'ltr' | 'rtl' };
   document: SharedDocument | null;
 }
+/** Member names never reach the public API: `author` is null for member entries, a guest's own name otherwise. */
 export interface PublicReply { id: string; text: string; author: string | null; author_kind: StudioAuthorKind; created_at: string | null }
+/** An open thread of the public comments API; resolved threads are never listed there. */
 export interface PublicComment {
   id: string; text: string; target: ReviewTarget; resolved: boolean; revision: number; created_at: string | null;
   author: string | null; author_kind: StudioAuthorKind; replies: PublicReply[];
@@ -53,6 +55,15 @@ export function shareUiLocale(languages: readonly string[] | undefined): ShareLo
     if (code === 'pl' || code === 'de' || code === 'en') return code;
   }
   return 'en';
+}
+
+/**
+ * UI language before any project context exists (share viewer, Studio loading
+ * and expired screens): the browser's preferred languages through shareUiLocale.
+ */
+export function browserUiLocale(): ShareLocale {
+  if (typeof navigator === 'undefined') return 'en';
+  return shareUiLocale(navigator.languages?.length ? navigator.languages : [navigator.language]);
 }
 
 function polish(count: number, one: string, few: string, many: string): string {
@@ -160,7 +171,7 @@ export const shareViewerCopy = {
     comments: 'Komentarze', showComments: 'Pokaż komentarze', hideComments: 'Ukryj komentarze', name: 'Twoje imię', guest: 'Gość',
     placeholder: 'Napisz komentarz…', send: 'Wyślij komentarz', reply: 'Odpowiedz', noComments: 'Brak komentarzy do tego pliku. Dodaj pierwszy.',
     commentOn: 'Komentarz do: {target}', wholePage: 'Cała strona', commentError: 'Nie udało się wysłać komentarza. Spróbuj ponownie.',
-    nameRequired: 'Podaj swoje imię.', limit: 'Ten projekt ma już najwięcej komentarzy, jakie można dodać.', nameInvalid: 'Imię zawiera niedozwolone znaki.', resolved: 'Rozwiązany', close: 'Zamknij', website: 'Strona internetowa',
+    nameRequired: 'Podaj swoje imię.', limit: 'Ten projekt ma już najwięcej komentarzy, jakie można dodać.', nameInvalid: 'Imię zawiera niedozwolone znaki.', member: 'Autor projektu', close: 'Zamknij', website: 'Strona internetowa',
   },
   en: {
     loading: 'Loading the project…', gone: 'This link has expired or was turned off.', goneHelp: 'Ask the project owner for a new link.',
@@ -170,7 +181,7 @@ export const shareViewerCopy = {
     comments: 'Comments', showComments: 'Show comments', hideComments: 'Hide comments', name: 'Your name', guest: 'Guest',
     placeholder: 'Write a comment…', send: 'Send comment', reply: 'Reply', noComments: 'No comments on this file yet. Add the first one.',
     commentOn: 'Comment on: {target}', wholePage: 'Whole page', commentError: 'The comment could not be sent. Please try again.',
-    nameRequired: 'Enter your name.', limit: 'This project already has the most comments that can be added.', nameInvalid: 'The name contains characters that are not allowed.', resolved: 'Resolved', close: 'Close', website: 'Website',
+    nameRequired: 'Enter your name.', limit: 'This project already has the most comments that can be added.', nameInvalid: 'The name contains characters that are not allowed.', member: 'Project author', close: 'Close', website: 'Website',
   },
   de: {
     loading: 'Projekt wird geladen…', gone: 'Dieser Link ist abgelaufen oder wurde deaktiviert.', goneHelp: 'Bitte den Projektinhaber um einen neuen Link.',
@@ -180,6 +191,6 @@ export const shareViewerCopy = {
     comments: 'Kommentare', showComments: 'Kommentare anzeigen', hideComments: 'Kommentare ausblenden', name: 'Dein Name', guest: 'Gast',
     placeholder: 'Kommentar schreiben…', send: 'Kommentar senden', reply: 'Antworten', noComments: 'Noch keine Kommentare zu dieser Datei. Schreib den ersten.',
     commentOn: 'Kommentar zu: {target}', wholePage: 'Ganze Seite', commentError: 'Der Kommentar konnte nicht gesendet werden. Bitte erneut versuchen.',
-    nameRequired: 'Gib deinen Namen ein.', limit: 'Dieses Projekt hat bereits die maximale Anzahl an Kommentaren.', nameInvalid: 'Der Name enthält unzulässige Zeichen.', resolved: 'Erledigt', close: 'Schließen', website: 'Webseite',
+    nameRequired: 'Gib deinen Namen ein.', limit: 'Dieses Projekt hat bereits die maximale Anzahl an Kommentaren.', nameInvalid: 'Der Name enthält unzulässige Zeichen.', member: 'Projektautor', close: 'Schließen', website: 'Webseite',
   },
 };

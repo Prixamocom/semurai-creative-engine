@@ -7,6 +7,7 @@ import './studio.css';
 import { StudioEditor } from './StudioEditor';
 import { useStudioTheme } from './studio-theme';
 import { startStudioSessionRenewal, studioCapMinutes, studioSessionCopy, type StudioSessionState } from './studio-session';
+import { browserUiLocale } from './studio-share';
 
 const copy = {
   en: { loading: 'Opening your project…', connected: 'Connected to Semurai', project: 'Your project',
@@ -41,8 +42,10 @@ export function SemuraiStudio() {
   const { setLocale } = useI18n();
   const { theme } = useStudioTheme();
   // Kept apart from the context, so the expired screen stays in the project's UI language.
-  const [locale, setUiLocale] = useState<StudioContext['project']['uiLocale']>('en');
-  const c = copy[locale];
+  // Until the context arrives it is the browser's language (as in the share viewer);
+  // null only in the prerendered shell, which therefore shows no text yet.
+  const [locale, setUiLocale] = useState<StudioContext['project']['uiLocale'] | null>(null);
+  const c = copy[locale ?? 'en'];
   /**
    * The session ended. Without unsaved work the expired screen replaces the
    * editor; with unsaved work the editor stays (Save disabled, a banner
@@ -56,6 +59,7 @@ export function SemuraiStudio() {
     const controller = new AbortController();
     const path = studioSessionPath(window.location.pathname);
     let stopRenewal: (() => void) | undefined;
+    setUiLocale(previous => previous ?? browserUiLocale());
     if (!path) { setUnavailable(true); return; }
     void fetch(path + 'context', { credentials: 'same-origin', cache: 'no-store', signal: controller.signal })
       .then(async response => {
@@ -82,7 +86,7 @@ export function SemuraiStudio() {
     const interval = setInterval(tick, 15_000);
     return () => clearInterval(interval);
   }, [session, unavailable]);
-  const sessionNotice = capMinutes === null ? undefined : studioSessionCopy[locale].capNotice.replace('{n}', String(capMinutes));
+  const sessionNotice = capMinutes === null ? undefined : studioSessionCopy[locale ?? 'en'].capNotice.replace('{n}', String(capMinutes));
   const projectTitle = context?.project.title;
   useEffect(() => { document.title = studioDocumentTitle(projectTitle); }, [projectTitle]);
   async function closeSession() {
@@ -99,12 +103,12 @@ export function SemuraiStudio() {
   // editor stays mounted so the user can retain/export their work.
   if (context) return <StudioEditor context={context} expired={unavailable} sessionNotice={sessionNotice} onExpired={expire}
     onDirtyChange={value => { dirty.current = value; }} onClose={() => { void closeSession(); }} />;
-  return <main className="semurai-studio-shell" data-testid="semurai-studio" data-studio-theme={theme}>
+  return <main className="semurai-studio-shell" data-testid="semurai-studio" data-studio-theme={theme} lang={locale ?? undefined}>
     <header className="semurai-studio-header">
       <div className="semurai-studio-wordmark"><span aria-hidden="true">S</span>Semurai Creative <small>Studio</small></div>
     </header>
     <section className="semurai-studio-content">
-      {unavailable ? <div role="alert"><h1>{c.expired}</h1><p>{c.expiredHelp}</p>
+      {!locale ? null : unavailable ? <div role="alert"><h1>{c.expired}</h1><p>{c.expiredHelp}</p>
         <a className="semurai-studio-primary" href="https://semur.ai/app/chat/creative">{c.back}</a></div>
         : <p role="status">{c.loading}</p>}
     </section>

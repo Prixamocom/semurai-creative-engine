@@ -29,6 +29,7 @@
 .anchor.anchor:focus-visible { outline: none; box-shadow: var(--studio-focus); }
 .number { display: inline-grid; flex-shrink: 0; place-items: center; min-width: 20px; height: 20px; padding: 0 var(--studio-space-1); border-radius: 10px 10px 10px 3px; background: var(--studio-accent); color: var(--studio-on-accent); font-size: var(--studio-text-sm); font-weight: 600; font-variant-numeric: tabular-nums; }
 .anchorLabel { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slideChip { flex-shrink: 0; padding: 0 var(--studio-space-1); border: 1px solid var(--studio-border); border-radius: var(--studio-radius-sm); color: var(--studio-text-secondary); font-size: var(--studio-text-sm); font-weight: 500; line-height: 16px; white-space: nowrap; }
 
 .thread .message { padding: var(--studio-space-2) 0; }
 .thread .message > div { display: flex; align-items: center; gap: var(--studio-space-2); }

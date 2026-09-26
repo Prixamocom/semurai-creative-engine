@@ -5,7 +5,7 @@ import { StudioShareButton } from '../../src/semurai/StudioShareDialog';
 import { StudioCommentThread } from '../../src/semurai/StudioCommentThread';
 import { SemuraiShareViewer } from '../../src/semurai/ShareViewer';
 import { threadBrief, type StudioComment } from '../../src/semurai/studio-review';
-import { shareCount, shareTokenFromPath, shareUiLocale, type PublicComment, type ShareItem } from '../../src/semurai/studio-share';
+import { browserUiLocale, shareCount, shareTokenFromPath, shareUiLocale, type PublicComment, type ShareItem } from '../../src/semurai/studio-share';
 
 const TOKEN = 'AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-abcde';
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
@@ -22,6 +22,14 @@ describe('share helpers', () => {
     expect(shareUiLocale(['pl-PL', 'en'])).toBe('pl');
     expect(shareUiLocale(['fr-FR', 'de-AT'])).toBe('de');
     expect(shareUiLocale(['fr-FR'])).toBe('en');
+    const languages = Object.getOwnPropertyDescriptor(navigator, 'languages');
+    Object.defineProperty(navigator, 'languages', { configurable: true, value: ['de-CH', 'pl'] });
+    expect(browserUiLocale()).toBe('de');
+    Object.defineProperty(navigator, 'languages', { configurable: true, value: [] });
+    Object.defineProperty(navigator, 'language', { configurable: true, value: 'pl-PL' });
+    expect(browserUiLocale()).toBe('pl');
+    if (languages) Object.defineProperty(navigator, 'languages', languages); else delete (navigator as { languages?: unknown }).languages;
+    delete (navigator as { language?: unknown }).language;
     expect([1, 2, 5, 12, 22, 25].map(count => shareCount('pl', 'views', count))).toEqual(['1 wyświetlenie', '2 wyświetlenia', '5 wyświetleń', '12 wyświetleń', '22 wyświetlenia', '25 wyświetleń']);
     expect([1, 3, 5, 14, 24].map(count => shareCount('pl', 'guestComments', count))).toEqual(['1 komentarz gościa', '3 komentarze gości', '5 komentarzy gości', '14 komentarzy gości', '24 komentarze gości']);
     expect(shareCount('en', 'views', 1)).toBe('1 view');
@@ -135,7 +143,11 @@ describe('public share viewer', () => {
   const payload = (permission: 'view' | 'comment') => ({ data: { share: { permission, expires_at: null }, project: { title: 'Plan 2027', artifact_type: 'presentation', locale: 'pl', direction: 'ltr' },
     document: { version: 3, document_hash: 'h', name: 'Plan', html: deck, files: [] } } });
   const guestThread: PublicComment = { id: 'c1', text: 'Świetne', target: { file: 'index.html', version: 3, label: 'Slajd 1', selector: 'body', text: '', slideIndex: 0 },
-    resolved: false, revision: 1, created_at: '2026-09-20T10:00:00Z', author: 'Ola', author_kind: 'guest', replies: [] };
+    resolved: false, revision: 1, created_at: '2026-09-20T10:00:00Z', author: 'Ola', author_kind: 'guest',
+    // The public API withholds member names (author null).
+    replies: [{ id: 'r1', text: 'Dziękujemy', author: null, author_kind: 'member', created_at: '2026-09-20T11:00:00Z' }] };
+  const memberThread: PublicComment = { id: 'c2', text: 'Nowy układ', target: { file: 'index.html', version: 3, label: 'h1', selector: 'h1', text: '' },
+    resolved: false, revision: 1, created_at: '2026-09-20T10:00:00Z', author: null, author_kind: 'member', replies: [] };
   beforeEach(() => {
     localStorage.clear();
     Object.defineProperty(navigator, 'languages', { configurable: true, value: ['pl-PL'] });
@@ -150,7 +162,7 @@ describe('public share viewer', () => {
         posts.push({ body, headers: new Headers(init.headers) });
         return new Response(JSON.stringify({ data: [guestThread, { ...guestThread, id: String(body.id), text: String(body.text), author: String(body.guest_name) }] }));
       }
-      return new Response(JSON.stringify({ data: [guestThread] }));
+      return new Response(JSON.stringify({ data: [guestThread, memberThread] }));
     }) as unknown as typeof fetch;
   }
 
@@ -186,6 +198,31 @@ describe('public share viewer', () => {
     expect(localStorage.getItem('semurai-share-guest-name')).toBe('Jan Kowalski');
     expect(screen.queryByRole('button', { name: /rozwiąż/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /czatu AI/i })).toBeNull();
+  });
+
+  it('shows workspace members as the project author, never by name, and guests by their own name', async () => {
+    render(<SemuraiShareViewer token={TOKEN} fetcher={fetcher('comment')} />);
+    await screen.findByText('Nowy układ');
+    const member = [...document.querySelectorAll<HTMLElement>('[data-author-kind="member"]')];
+    expect(member).toHaveLength(2);
+    for (const entry of member) {
+      expect(within(entry).getByText('Autor projektu')).toBeTruthy();
+      expect(within(entry).queryByText('Gość')).toBeNull();
+      expect(entry.querySelector('[aria-hidden="true"] svg')).toBeTruthy();
+    }
+    const guest = document.querySelector<HTMLElement>('[data-author-kind="guest"]')!;
+    expect(within(guest).getByText('Ola')).toBeTruthy();
+    expect(within(guest).getByText('Gość')).toBeTruthy();
+    expect(within(guest).getByText('O')).toBeTruthy();
+    expect(screen.queryByText('Rozwiązany')).toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Ukryj komentarze' }).some(button => button.textContent === 'Komentarze2')).toBe(true);
+  });
+
+  it('shows the loading state in the browser language before the project arrives', async () => {
+    Object.defineProperty(navigator, 'languages', { configurable: true, value: ['de-DE', 'en'] });
+    render(<SemuraiShareViewer token={TOKEN} fetcher={vi.fn(() => new Promise<Response>(() => {})) as unknown as typeof fetch} />);
+    expect((await screen.findByRole('status')).textContent).toBe('Projekt wird geladen…');
+    expect(screen.getByTestId('share-viewer').getAttribute('lang')).toBe('de');
   });
 
   it('shows a dead link screen for revoked, expired or unknown links', async () => {

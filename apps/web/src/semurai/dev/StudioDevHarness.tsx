@@ -13,7 +13,7 @@ import { DEV_FIRST_PROMPT, DEV_MEDIA, DEV_SESSION_PATH, DEV_SHARE_TOKEN, devComm
 
 type Locale = StudioContext['project']['uiLocale'];
 interface DevVersion { id: string; version: number; kind: string; created_at: string; document: unknown; summary?: string }
-interface DevComment { id: string; text: string; resolved: boolean; revision: number; author: string; created_at: string; target: unknown; replies: { id: string; text: string; author: string; created_at: string }[] }
+interface DevComment { id: string; text: string; resolved: boolean; revision: number; author: string; author_kind?: 'member' | 'guest'; created_at: string; target: unknown; replies: { id: string; text: string; author: string; created_at: string }[] }
 
 function installStubs(fixture: DevFixture, sharing: 'on' | 'unavailable') {
   const originalFetch = window.fetch.bind(window);

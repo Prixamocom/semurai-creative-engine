@@ -8,6 +8,10 @@ import { StudioButton, StudioButtonGroup } from './StudioButton';
 import { studioDrawCopy } from './studio-editor-copy';
 
 export type StudioReviewSelectMode = 'element' | 'area' | 'draw';
+/** A comment on a whole deck slide (e.g. from a share link): its slide chip is the whole label, the stored one ("Slajd 2") would repeat it. */
+function wholeSlide(target: ReviewTarget): boolean {
+  return target.slideIndex !== undefined && target.selector === 'body';
+}
 
 /**
  * Comments panel shown in the Studio side panel while the Comment tool is
@@ -55,8 +59,10 @@ export function StudioReview({ locale, file, version, target, disabled, api, onA
     </div>
     {error && <p role="alert" className={styles.error}>{error}</p>}
     <label className={styles.filter}><input type="checkbox" checked={resolved} onChange={event => onResolvedChange(event.target.checked)} />{c.resolved}</label>
+    {/* Deck threads carry their slide (chip); choosing one goes to that slide, where its pin is shown. */}
     <div className={styles.list}>{!visible.length && <p className={styles.hint}>{c.empty}</p>}{visible.map(item => <article key={item.id} data-comment-id={item.id} tabIndex={-1} className={(item.resolved ? styles.resolved : '') + (item.id === activeCommentId ? ' ' + styles.selected : '')}>
-      <button type="button" className={styles.anchor} title={item.target.label} onClick={() => onSelect(item.target, item.id)}><span className={styles.number}>{item.number}</span><span className={styles.anchorLabel}>{item.target.label}</span></button>
+      <button type="button" className={styles.anchor} title={item.target.label} onClick={() => onSelect(item.target, item.id)}><span className={styles.number}>{item.number}</span>{!wholeSlide(item.target) && <span className={styles.anchorLabel}>{item.target.label}</span>}
+        {item.target.slideIndex !== undefined && <span className={styles.slideChip}>{c.slide} {item.target.slideIndex + 1}</span>}</button>
       <StudioCommentThread comment={item} locale={locale} disabled={disabled || busy} api={api} onChange={onCommentsChange} onAsk={text => onAsk(item.target, text)} />
     </article>)}</div>
   </section>;
