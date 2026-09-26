@@ -1,4 +1,5 @@
 import type { StudioChatJob } from './studio-chat';
+import { studioBriefParts } from './studio-brief';
 
 export interface StudioVersion {
   id: string; version: number; kind: string; created_at: string;
@@ -15,8 +16,6 @@ export function studioVersionSource(kind: string): StudioVersionSource {
   return 'ai';
 }
 
-const EDIT_PREFIX = /^Edit the file \S+ within this project\. Preserve other files\.\n/;
-
 /**
  * The prompt or summary shown under a version. Core's version list carries no
  * text today, so an AI version borrows the brief of the completed job that
@@ -31,9 +30,8 @@ export function studioVersionSummary(version: StudioVersion, jobs: readonly Stud
     .filter(item => item.status === 'completed' && item.base_version === version.version - 1 && item.brief)
     .sort((a, b) => Math.abs(Date.parse(a.completed_at ?? a.created_at ?? '') - created) - Math.abs(Date.parse(b.completed_at ?? b.created_at ?? '') - created))[0];
   if (!job) return '';
-  // Selection briefs carry a JSON target; show only the user's instruction.
-  const instruction = job.brief.includes('\nUser instruction:\n') ? job.brief.split('\nUser instruction:\n').pop()! : job.brief;
-  return instruction.replace(EDIT_PREFIX, '').trim();
+  // Briefs carry engine instructions and selection JSON; show only the user's instruction.
+  return studioBriefParts(job.brief).instruction;
 }
 
 const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [['year', 31_536_000], ['month', 2_592_000], ['week', 604_800], ['day', 86_400], ['hour', 3_600], ['minute', 60]];

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Check, Circle, Loader2, Sparkles, Eye, Pencil, Search, Terminal, Users, ListChecks, AlertCircle } from 'lucide-react';
+import { Check, Circle, Crosshair, Loader2, Sparkles, Eye, Pencil, Search, Terminal, Users, ListChecks, AlertCircle } from 'lucide-react';
 import { renderMarkdown } from '../runtime/markdown';
 import { splitOnQuestionForms, stripTrailingOpenQuestionForm } from '../artifacts/question-form';
 import { QuestionFormView } from '../components/QuestionForm';
 import { studioChatMessages, studioDisplayStatus, terminalChatStatuses, type StudioChatJob, type StudioLiveRun } from './studio-chat';
 import { studioEditorCopy } from './studio-editor-copy';
+import { studioBriefParts } from './studio-brief';
 import styles from './StudioEditor.module.css';
 import execution from './StudioExecution.module.css';
 import { StudioButton } from './StudioButton';
@@ -23,6 +24,8 @@ export function StudioChatTurn({ job, live, cancelling, busy, copy: c, onCancel,
         : ['building_layout', 'rendering'].includes(status) ? c.checking : status === 'awaiting_storage' ? c.saving : c.working;
   const [now, setNow] = useState(Date.now);
   useEffect(() => { if (!active) return; const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, [active]);
+  const request = studioBriefParts(job.brief);
+  const target = request.target;
   const messages = studioChatMessages(job, live?.messages);
   const lastPlan = messages.filter(item => item.todos?.length).at(-1)?.id;
   const blocks: typeof messages[] = [];
@@ -32,7 +35,10 @@ export function StudioChatTurn({ job, live, cancelling, busy, copy: c, onCancel,
     else blocks.push([message]);
   }
   return <div className={styles.turn}>
-    <p className={styles.userMessage}>{job.brief}</p>
+    {target && <p className={styles.userTarget} aria-label={c.chatTarget} title={target.text}>
+      <Crosshair size={16} aria-hidden="true" /><span>{[target.label, target.file, target.slideIndex === undefined ? '' : `${c.chatTargetSlide} ${target.slideIndex + 1}`].filter(Boolean).join(' · ')}</span>
+    </p>}
+    {request.instruction && <p className={styles.userMessage}>{request.instruction}</p>}
     <div className={styles.references}>{job.references?.map(image => image.thumbnail && <img key={image.id} src={image.thumbnail} alt={image.title} title={image.title} />)}</div>
     <div className={styles.answer}><span className={styles.spark}><Sparkles size={16} /></span><div>
       {blocks.map(block => block[0]!.kind === 'activity' ? <details key={block[0]!.id} className={execution.record} open={active}>

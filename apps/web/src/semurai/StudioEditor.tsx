@@ -20,6 +20,8 @@ import { StudioConfirm, StudioToast } from './StudioFeedback';
 import { changeSlide, replaceStyleBlock, styleBlocks, studioFileSource, replaceStudioFile, type SlideOperation } from './studio-source';
 import { downloadStudioFile, exportStudioDocument } from './studio-export';
 import { StudioChatTurn } from './StudioChatTurn';
+import { useStudioChatScroll } from './studio-chat-scroll';
+import { studioEditBrief } from './studio-brief';
 import { terminalChatStatuses as terminal, type StudioChatJob, type StudioLiveRun } from './studio-chat';
 import { StudioMedia, type StudioImage } from './StudioMedia';
 import { StudioPresenter } from './StudioPresenter';
@@ -144,8 +146,6 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath, s
   const [useLibrary, setUseLibrary] = useState(true);
   const [mediaBusy, setMediaBusy] = useState(false);
   const [imagePicker, setImagePicker] = useState<{ source: string; target: ManualEditTarget | null; initialSource: 'attach' | 'library' } | null>(null);
-  const chatLog = useRef<HTMLDivElement>(null);
-  const followChat = useRef(true);
   const [device, setDevice] = useState(0);
   const [zoomSetting, setZoomSetting] = useState<number | 'fit'>(100);
   const [fitZoom, setFitZoom] = useState(100);
@@ -358,7 +358,7 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath, s
   useEffect(() => { dirtyRef.current?.(dirty); }, [dirty]);
   useEffect(() => { const warn = (event: BeforeUnloadEvent) => { if (dirty) { event.preventDefault(); event.returnValue = ''; } }; window.addEventListener('beforeunload', warn); return () => window.removeEventListener('beforeunload', warn); }, [dirty]);
 
-  useEffect(() => { const element = chatLog.current; if (element && followChat.current) element.scrollTop = element.scrollHeight; }, [jobs, liveMessages]);
+  const chatScroll = useStudioChatScroll({ shown: tool === 'select' && !chatCollapsed, revealed: showChat, jobs, live: liveMessages });
   useEffect(() => {
     if (expired || typeof EventSource === 'undefined') return;
     const events = new EventSource(path + 'chat/events');
@@ -582,10 +582,11 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath, s
   async function action(work: () => Promise<void>) { setBusy(true); setError(''); try { await work(); } catch (reason) { setError(reason instanceof Error ? reason.message : c.error); } finally { setBusy(false); } }
   async function send() {
     if (!prompt.trim() || active || busy || mediaBusy) return;
+    chatScroll.follow();
     await action(async () => {
       const current = await saveCurrent(); requestKey.current ??= crypto.randomUUID();
       await api('jobs', 'POST', { operation: current ? 'edit' : 'generate', edit_mode: 'patch', quality: 'standard',
-        brief: aiTarget ? reviewBrief(aiTarget, prompt) : `Edit the file ${activeFileRef.current} within this project. Preserve other files.\n` + prompt.trim(), reference_ids: images.map(item => item.id), use_media_library: useLibrary, base_version: current?.version ?? 0, base_revision: current?.document_hash ?? null, idempotency_key: requestKey.current });
+        brief: aiTarget ? reviewBrief(aiTarget, prompt) : studioEditBrief(activeFileRef.current, prompt), reference_ids: images.map(item => item.id), use_media_library: useLibrary, base_version: current?.version ?? 0, base_revision: current?.document_hash ?? null, idempotency_key: requestKey.current });
       requestKey.current = null; setPrompt(''); setAiTarget(null); setImages([]); await refresh();
     });
   }
@@ -708,7 +709,7 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath, s
 
   const locale = context.project.uiLocale;
   const conversation = <>
-    <div className={styles.conversation} ref={chatLog} role="log" onScroll={event => { const element = event.currentTarget; followChat.current = element.scrollHeight - element.scrollTop - element.clientHeight < 160; }}>
+    <div className={styles.conversation} ref={chatScroll.log} role="log" onScroll={chatScroll.onScroll}>
       {!jobs.length && <div className={styles.welcome}><span className={styles.welcomeBrand}><Sparkles size={16} />{c.newProject}</span><h2>{c.empty}</h2><p>{c.emptyHelp}</p></div>}
       {[...jobs].reverse().map(job => <StudioChatTurn key={job.id} job={job} live={job.run_id ? liveMessages[job.run_id] : undefined} cancelling={cancelling === job.id} busy={busy} copy={c} onAnswer={job.id === jobs[0]?.id && !active ? text => { setPrompt(text); } : undefined} onCancel={() => { void cancelJob(job); }} onRetry={() => { void action(async () => { await api('jobs/' + job.id + '/retry', 'POST', {}); await refresh(); }); }} />)}
     </div>

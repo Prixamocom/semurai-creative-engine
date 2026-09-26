@@ -4,6 +4,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { StudioChatTurn } from '../../src/semurai/StudioChatTurn';
 import { studioEditorCopy } from '../../src/semurai/studio-editor-copy';
 import { studioChatMessages, studioDisplayStatus, type StudioChatJob } from '../../src/semurai/studio-chat';
+import { reviewBrief } from '../../src/semurai/studio-review';
 afterEach(cleanup);
 
 it('waits for Core storage before reporting a completed version', () => {
@@ -49,4 +50,20 @@ it('keeps clarification terminal and the composer available without a cancel spi
   expect(screen.getByRole('status').textContent).toBe(studioEditorCopy.en.needsInput);
   expect(screen.queryByRole('button', { name: studioEditorCopy.en.cancel })).toBeNull();
   expect(view.container.querySelector('.lucide-loader-circle')).toBeNull();
+});
+
+it('shows only what the user typed, with a chip for a selection', () => {
+  const brief = reviewBrief({ file: 'deck.html', version: 3, label: 'h1', selector: 'section > h1', text: 'Welcome', slideIndex: 1 }, 'Make the heading shorter');
+  const view = render(<StudioChatTurn job={{ ...job, brief }} busy={false} cancelling={false} copy={studioEditorCopy.pl} onCancel={vi.fn()} onRetry={vi.fn()} />);
+  expect(screen.getByText('Make the heading shorter')).toBeTruthy();
+  expect(screen.getByLabelText('Zaznaczony element').textContent).toBe('h1 · deck.html · Slajd 2');
+  expect(view.container.textContent).not.toContain('User instruction');
+  expect(view.container.textContent).not.toContain('selector');
+  expect(view.container.textContent).not.toContain('Edit only');
+});
+
+it('shows a whole-file request without the engine prefix or a chip', () => {
+  const view = render(<StudioChatTurn job={{ ...job, brief: 'Edit the file index.html within this project. Preserve other files.\nDodaj zdjęcie na początku' }} busy={false} cancelling={false} copy={studioEditorCopy.pl} onCancel={vi.fn()} onRetry={vi.fn()} />);
+  expect(view.container.querySelector('p')?.textContent).toBe('Dodaj zdjęcie na początku');
+  expect(screen.queryByLabelText('Zaznaczony element')).toBeNull();
 });

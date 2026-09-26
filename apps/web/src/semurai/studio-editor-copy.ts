@@ -13,7 +13,7 @@ export const studioEditorCopy = {
     modeChat: 'Czat', modeEdit: 'Edycja', tools: 'Narzędzia', toolSelect: 'Zaznacz', toolSelectHint: 'Podgląd projektu i czat AI', toolComment: 'Komentarz', toolCommentHint: 'Komentuj elementy projektu',
     toolEdit: 'Edycja', toolEditHint: 'Edytuj elementy ręcznie', openComments: 'Otwarte komentarze', view: 'Widok', devices: 'Urządzenie',
     zoomIn: 'Powiększ', zoomOut: 'Pomniejsz', zoomFit: 'Dopasuj do szerokości', presentStart: 'Od początku', presentCurrent: 'Od bieżącego slajdu', presenterView: 'Widok prezentera',
-    sheet: 'Arkusz', currentVersion: 'Bieżąca', exportMenu: 'Opcje eksportu' },
+    sheet: 'Arkusz', currentVersion: 'Bieżąca', exportMenu: 'Opcje eksportu', chatTarget: 'Zaznaczony element', chatTargetSlide: 'Slajd' },
   en: { queued: 'Queued…', planning: 'Reviewing the request and planning…', checking: 'Checking project files…', saving: 'Saving the new version…', needsInput: 'Waiting for your answer', execution: 'Execution record', plan: 'Execution plan', read: 'Read', write: 'Update file', search: 'Search', execute: 'Execute', delegate: 'Agent task', harnessBlocked: 'The task stopped before completion. Your previous version remains available.', harnessUnavailable: 'The design engine could not start. Please retry.', exportHistory: 'Saved exports', noExports: 'Your exported files will appear here.', downloadAgain: 'Download again', exportSaveFailed: 'Your file was downloaded, but a copy could not be saved to this project.', expired: 'Session expired. Reopen Studio from Semurai. You can download unsaved work as HTML.', duplicateSlide: 'Duplicate slide', removeSlide: 'Delete slide', moveUp: 'Move earlier', moveDown: 'Move later', back: 'Back to chat', saved: 'Saved', unsaved: 'Unsaved changes', save: 'Save', preview: 'Preview', source: 'Source', edit: 'Edit',
     desktop: 'Desktop', tablet: 'Tablet', mobile: 'Mobile', undo: 'Undo', redo: 'Redo', history: 'History', export: 'Export',
     chat: 'Project chat', ask: 'What would you like to change?', send: 'Send', working: 'Applying changes…', completed: 'New version ready',
@@ -28,7 +28,7 @@ export const studioEditorCopy = {
     modeChat: 'Chat', modeEdit: 'Edit', tools: 'Tools', toolSelect: 'Select', toolSelectHint: 'Project preview and AI chat', toolComment: 'Comment', toolCommentHint: 'Comment on project elements',
     toolEdit: 'Edit', toolEditHint: 'Edit elements by hand', openComments: 'Open comments', view: 'View', devices: 'Device',
     zoomIn: 'Zoom in', zoomOut: 'Zoom out', zoomFit: 'Fit to width', presentStart: 'From the beginning', presentCurrent: 'From current slide', presenterView: 'Presenter view',
-    sheet: 'Sheet', currentVersion: 'Current', exportMenu: 'Export options' },
+    sheet: 'Sheet', currentVersion: 'Current', exportMenu: 'Export options', chatTarget: 'Selected element', chatTargetSlide: 'Slide' },
   de: { queued: 'In der Warteschlange…', planning: 'Anfrage analysieren und planen…', checking: 'Projektdateien prüfen…', saving: 'Neue Version speichern…', needsInput: 'Warte auf deine Antwort', execution: 'Arbeitsverlauf', plan: 'Ausführungsplan', read: 'Lesen', write: 'Datei ändern', search: 'Suchen', execute: 'Ausführen', delegate: 'Agent-Aufgabe', harnessBlocked: 'Die Aufgabe wurde vor dem Abschluss gestoppt. Deine vorherige Version bleibt verfügbar.', harnessUnavailable: 'Die Design-Engine konnte nicht gestartet werden. Bitte erneut versuchen.', exportHistory: 'Gespeicherte Exporte', noExports: 'Exportierte Dateien erscheinen hier.', downloadAgain: 'Erneut herunterladen', exportSaveFailed: 'Die Datei wurde heruntergeladen, aber eine Kopie konnte nicht im Projekt gespeichert werden.', expired: 'Sitzung abgelaufen. Öffne Studio erneut über Semurai. Ungespeicherte Arbeit kann als HTML heruntergeladen werden.', duplicateSlide: 'Folie duplizieren', removeSlide: 'Folie löschen', moveUp: 'Nach vorne', moveDown: 'Nach hinten', back: 'Zurück zum Chat', saved: 'Gespeichert', unsaved: 'Ungespeicherte Änderungen', save: 'Speichern', preview: 'Vorschau', source: 'Quelltext', edit: 'Bearbeiten',
     desktop: 'Computer', tablet: 'Tablet', mobile: 'Mobil', undo: 'Rückgängig', redo: 'Wiederholen', history: 'Verlauf', export: 'Export',
     chat: 'Projektchat', ask: 'Was möchtest du am Projekt ändern?', send: 'Senden', working: 'Änderungen werden angewendet…', completed: 'Neue Version bereit',
@@ -43,7 +43,7 @@ export const studioEditorCopy = {
     modeChat: 'Chat', modeEdit: 'Bearbeiten', tools: 'Werkzeuge', toolSelect: 'Auswählen', toolSelectHint: 'Projektvorschau und KI-Chat', toolComment: 'Kommentar', toolCommentHint: 'Projektelemente kommentieren',
     toolEdit: 'Bearbeiten', toolEditHint: 'Elemente manuell bearbeiten', openComments: 'Offene Kommentare', view: 'Ansicht', devices: 'Gerät',
     zoomIn: 'Vergrößern', zoomOut: 'Verkleinern', zoomFit: 'An Breite anpassen', presentStart: 'Von Anfang an', presentCurrent: 'Ab aktueller Folie', presenterView: 'Referentenansicht',
-    sheet: 'Stylesheet', currentVersion: 'Aktuell', exportMenu: 'Exportoptionen' },
+    sheet: 'Stylesheet', currentVersion: 'Aktuell', exportMenu: 'Exportoptionen', chatTarget: 'Ausgewähltes Element', chatTargetSlide: 'Folie' },
 };
 
 /** PNG export: menu items, pick mode, toasts and errors. `{scale}` and `{name}` are filled in by the editor. */

@@ -32,6 +32,9 @@
 /* Chat turns (StudioChatTurn). */
 .turn { margin-bottom: var(--studio-space-5); }
 .userMessage { margin: 0 0 var(--studio-space-3) var(--studio-space-5); padding: var(--studio-space-2) var(--studio-space-3); border-radius: var(--studio-radius-xl) var(--studio-radius-xl) var(--studio-radius-sm) var(--studio-radius-xl); background: var(--studio-field); white-space: pre-wrap; overflow-wrap: anywhere; }
+.userTarget { display: flex; align-items: center; gap: var(--studio-space-1); min-width: 0; margin: 0 0 var(--studio-space-1) var(--studio-space-5); color: var(--studio-text-secondary); font-size: var(--studio-text-sm); }
+.userTarget span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.userTarget svg { flex: none; color: var(--studio-accent); }
 .references { display: flex; flex-wrap: wrap; gap: var(--studio-space-1); margin: 0 0 var(--studio-space-2); }
 .references:empty { display: none; }
 .references img { width: 64px; height: 64px; object-fit: cover; border-radius: var(--studio-radius-lg); }
