@@ -1,129 +1,5 @@
-/* Studio design tokens, scoped to the editor root. The light values build on
-   the app tokens in styles/tokens.css; the dark theme below overrides the same
-   variables under the Studio-owned data-studio-theme="dark" attribute (the app
-   layout pins data-theme="light" on <html>, so Studio never uses that one).
-   --sans is the self-hosted Albert Sans, so it also works under the Studio CSP
-   (font-src 'self'). Every Semurai Studio module (panel, edit panel, comments,
-   chrome primitives, dialogs) reads these variables instead of literals. */
-.editor {
-  color-scheme: light;
-  /* The page behind the user's design stays white in both themes. */
-  --studio-artboard: #fff;
-  --studio-font: var(--sans);
-  --studio-mono: var(--mono);
-  /* Surfaces: white chrome and panels around a soft neutral canvas. */
-  --studio-surface: var(--bg);
-  --studio-surface-raised: var(--bg);
-  --studio-canvas: color-mix(in srgb, var(--text-strong) 5%, var(--bg));
-  --studio-track: var(--bg-fill-secondary);
-  --studio-field: color-mix(in srgb, var(--text-strong) 4%, var(--bg));
-  --studio-field-hover: color-mix(in srgb, var(--text-strong) 7%, var(--bg));
-  --studio-hover: var(--bg-fill-secondary);
-  --studio-active: var(--bg-fill);
-  --studio-border: var(--border);
-  --studio-border-strong: var(--border-strong);
-  --studio-text: var(--text-strong);
-  --studio-text-secondary: var(--text-muted);
-  --studio-text-tertiary: var(--text-soft);
-  --studio-text-disabled: var(--text-faint);
-  /* One accent for selection, active tools and comment markers. */
-  --studio-accent: var(--blue);
-  --studio-accent-soft: color-mix(in srgb, var(--blue) 10%, transparent);
-  --studio-on-accent: #fff;
-  --studio-primary: var(--text-strong);
-  --studio-primary-hover: color-mix(in srgb, var(--text-strong) 82%, var(--bg));
-  --studio-on-primary: var(--bg);
-  --studio-danger: var(--red);
-  --studio-danger-soft: color-mix(in srgb, var(--red) 10%, transparent);
-  --studio-letterbox: #111;
-  --studio-focus: 0 0 0 3px color-mix(in srgb, var(--blue) 22%, transparent);
-  --studio-shadow-xs: 0 1px 2px color-mix(in srgb, var(--text-strong) 10%, transparent);
-  --studio-shadow-md: var(--shadow-md);
-  --studio-shadow-lg: var(--shadow-lg);
-  --studio-control-h: 28px;
-  --studio-bar-h: 44px;
-  --studio-radius-sm: 4px;
-  --studio-radius-md: 6px;
-  --studio-radius-lg: 8px;
-  --studio-radius-xl: 12px;
-  --studio-text-sm: 11px;
-  --studio-text-md: 12px;
-  --studio-text-lg: 13px;
-  --studio-text-xl: 16px;
-  --studio-text-2xl: 20px;
-  --studio-space-1: 4px;
-  --studio-space-2: 8px;
-  --studio-space-3: 12px;
-  --studio-space-4: 16px;
-  --studio-space-5: 24px;
-  /* Referenced across Studio CSS but previously defined nowhere. */
-  --text-primary: var(--studio-text);
-  --text-secondary: var(--studio-text-secondary);
-  --text-tertiary: var(--studio-text-tertiary);
-}
-
-/* Dark theme. Neutral grays, text contrast on the chrome surfaces (#1e1e1e,
-   raised #2a2a2a, fields #262626): text 14.2 / 12.3 / 12.9, secondary 7.9 / 6.9
-   / 7.2, tertiary 5.9 / 5.0 / 5.3, accent 6.4 / 5.5, danger 6.0 / 5.2. The app
-   tokens are overridden too, so upstream primitives rendered inside Studio
-   (Dialog, Button, the deck thumbnail rail, native form controls) follow. */
-.editor[data-studio-theme='dark'] {
-  color-scheme: dark;
-  --bg: #1e1e1e;
-  --bg-app: #1e1e1e;
-  --bg-panel: #262626;
-  --bg-subtle: #333;
-  --bg-muted: #4d4d4d;
-  --bg-fill-tertiary: rgba(255, 255, 255, .05);
-  --bg-fill-secondary: rgba(255, 255, 255, .08);
-  --bg-fill: rgba(255, 255, 255, .12);
-  --bg-elevated: #2a2a2a;
-  --border: #333;
-  --border-strong: #4d4d4d;
-  --border-soft: #2a2a2a;
-  --text: #ededed;
-  --text-strong: #ededed;
-  --text-muted: #b3b3b3;
-  --text-soft: #999;
-  --text-faint: #6b6b6b;
-  --blue: #5aa2ff;
-  --red: #ff6b6b;
-  --selected: #5aa2ff;
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, .5);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .45), 0 1px 3px rgba(0, 0, 0, .3);
-  --shadow-md: 0 6px 24px rgba(0, 0, 0, .45), 0 2px 6px rgba(0, 0, 0, .3);
-  --shadow-lg: 0 24px 60px rgba(0, 0, 0, .6), 0 8px 16px rgba(0, 0, 0, .35);
-  --studio-surface: #1e1e1e;
-  --studio-surface-raised: #2a2a2a;
-  --studio-canvas: #141414;
-  --studio-track: #141414;
-  --studio-field: #262626;
-  --studio-field-hover: #2e2e2e;
-  --studio-hover: rgba(255, 255, 255, .07);
-  --studio-active: rgba(255, 255, 255, .12);
-  --studio-border: #333;
-  --studio-border-strong: #4d4d4d;
-  --studio-text: #ededed;
-  --studio-text-secondary: #b3b3b3;
-  --studio-text-tertiary: #999;
-  --studio-text-disabled: #6b6b6b;
-  --studio-accent: #5aa2ff;
-  --studio-accent-soft: color-mix(in srgb, #5aa2ff 18%, transparent);
-  --studio-on-accent: #0b1a33;
-  --studio-primary: #ededed;
-  --studio-primary-hover: #d4d4d4;
-  --studio-on-primary: #1a1a1a;
-  --studio-danger: #ff6b6b;
-  --studio-danger-soft: color-mix(in srgb, #ff6b6b 16%, transparent);
-  --studio-letterbox: #000;
-  --studio-focus: 0 0 0 3px color-mix(in srgb, #5aa2ff 45%, transparent);
-  --studio-shadow-xs: 0 1px 2px rgba(0, 0, 0, .5);
-  --studio-shadow-md: 0 6px 24px rgba(0, 0, 0, .45), 0 2px 6px rgba(0, 0, 0, .3);
-  --studio-shadow-lg: 0 24px 60px rgba(0, 0, 0, .6), 0 8px 16px rgba(0, 0, 0, .35);
-}
-/* The app draws its own select chevron in a light-theme gray (styles/primitives.css).
-   Only unstyled selects use it (image picker, presenter); the Edit panel fields draw their own. */
-.editor[data-studio-theme='dark'] select:not([class]) { background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%23b3b3b3' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='3 5 6 8 9 5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; background-size: 12px 12px; }
+/* The --studio-* tokens (light and dark) live in StudioTokens.module.css; the
+   editor root carries both its .tokens class and .editor. */
 
 /* Layout: side panel | resize handle | workspace (top bar over the canvas). */
 .editor { display: grid; grid-template-columns: minmax(280px, var(--chat-width, 390px)) 6px minmax(0, 1fr); height: 100dvh; overflow: hidden; background: var(--studio-surface); color: var(--studio-text); font-family: var(--studio-font); font-size: var(--studio-text-lg); line-height: 20px; }
@@ -284,6 +160,9 @@
 .versionBanner > svg { flex-shrink: 0; color: var(--studio-accent); }
 .versionBanner > span { flex: 1; min-width: 0; color: var(--studio-text-secondary); }
 .versionBanner strong { color: var(--studio-text); font-weight: 600; }
+/* Non-blocking countdown before the session reaches its absolute cap. */
+.sessionNotice { display: flex; flex-shrink: 0; align-items: center; gap: var(--studio-space-2); min-height: 32px; padding: var(--studio-space-1) var(--studio-space-4); border-bottom: 1px solid var(--studio-border); background: var(--studio-field); color: var(--studio-text-secondary); font-size: var(--studio-text-md); }
+.sessionNotice > svg { flex-shrink: 0; color: var(--studio-text-tertiary); }
 
 /* PNG pick mode hint and capture status, floating over the top of the canvas. */
 .pickBar { position: absolute; top: var(--studio-space-3); left: 50%; z-index: 14; display: flex; align-items: center; gap: var(--studio-space-2); max-width: calc(100% - 32px); padding: var(--studio-space-1) var(--studio-space-1) var(--studio-space-1) var(--studio-space-3); border: 1px solid var(--studio-border); border-radius: var(--studio-radius-lg); background: var(--studio-surface-raised); color: var(--studio-text); box-shadow: var(--studio-shadow-md); font-size: var(--studio-text-md); transform: translateX(-50%); white-space: nowrap; }

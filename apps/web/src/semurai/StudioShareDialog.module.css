@@ -1,0 +1,59 @@
+/* Share dialog (StudioShareDialog). The Dialog backdrop comes from
+   @open-design/components; the panel follows the --studio-* tokens of the
+   editor root (StudioTokens.module.css), in light and dark. */
+.triggerLabel { display: inline; }
+/* The label goes first when the top bar gets tight (see the other @container steps in StudioEditor.module.css). */
+@container workspace (max-width: 1330px) { .triggerLabel { display: none; } }
+@container workspace (max-width: 1500px) { :lang(de) .triggerLabel { display: none; } }
+
+.dialog.dialog {
+  width: min(560px, calc(100vw - 32px)); max-height: min(720px, calc(100dvh - 48px)); overflow-y: auto; gap: var(--studio-space-4);
+  padding: var(--studio-space-5); border: 1px solid var(--studio-border); border-radius: var(--studio-radius-xl);
+  background: var(--studio-surface-raised); color: var(--studio-text); box-shadow: var(--studio-shadow-lg);
+  font-family: var(--studio-font); font-size: var(--studio-text-lg); line-height: 20px;
+}
+.head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--studio-space-3); }
+.head h2 { margin: 0; font-size: var(--studio-text-xl); font-weight: 600; line-height: 22px; }
+.head p { margin: var(--studio-space-1) 0 0; color: var(--studio-text-secondary); }
+.unavailable { margin: 0; padding: var(--studio-space-3) var(--studio-space-4); border-radius: var(--studio-radius-lg); background: var(--studio-field); color: var(--studio-text-secondary); }
+
+.create { display: grid; gap: var(--studio-space-3); padding: var(--studio-space-4); border: 1px solid var(--studio-border); border-radius: var(--studio-radius-lg); }
+.fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--studio-space-3); }
+.field { display: grid; gap: var(--studio-space-1); min-width: 0; }
+.field > span { color: var(--studio-text-secondary); font-size: var(--studio-text-md); font-weight: 500; line-height: 16px; }
+.field > div { width: 100%; }
+.select.select { justify-content: flex-start; width: 100%; }
+.select span { flex: 1; min-width: 0; overflow: hidden; text-align: left; text-overflow: ellipsis; }
+.input, .url {
+  box-sizing: border-box; width: 100%; height: var(--studio-control-h); padding: 0 var(--studio-space-2);
+  border: 1px solid var(--studio-border); border-radius: var(--studio-radius-md); background: var(--studio-field); color: var(--studio-text);
+  font: inherit; font-size: var(--studio-text-lg); transition: border-color .12s, box-shadow .12s;
+}
+.input:hover, .url:hover { border-color: var(--studio-border-strong); }
+.input.input:focus, .url.url:focus { outline: 0; border-color: var(--studio-accent); box-shadow: var(--studio-focus); }
+.input::placeholder { color: var(--studio-text-tertiary); }
+.createActions { display: flex; justify-content: flex-end; }
+.error { margin: 0; color: var(--studio-danger); font-size: var(--studio-text-md); line-height: 18px; }
+.muted { margin: 0; color: var(--studio-text-tertiary); }
+
+.list { display: grid; gap: var(--studio-space-2); }
+.list h3 { margin: 0; font-size: var(--studio-text-lg); font-weight: 600; }
+.link { display: grid; gap: var(--studio-space-2); padding: var(--studio-space-3); border: 1px solid var(--studio-border); border-radius: var(--studio-radius-lg); background: var(--studio-surface-raised); }
+.link[data-fresh] { border-color: var(--studio-accent); box-shadow: inset 0 0 0 1px var(--studio-accent); }
+.link[aria-busy=true] { opacity: .7; }
+.linkHead { display: flex; align-items: center; gap: var(--studio-space-2); min-width: 0; }
+.linkHead strong { min-width: 0; overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.linkHead > div { margin-left: auto; }
+.status { flex-shrink: 0; padding: 0 var(--studio-space-1); border-radius: var(--studio-radius-sm); background: var(--studio-accent-soft); color: var(--studio-accent); font-size: var(--studio-text-sm); font-weight: 600; line-height: 16px; }
+.status[data-status=expired] { background: var(--studio-track); color: var(--studio-text-secondary); }
+.permission.permission { font-weight: 500; }
+.meta { display: flex; flex-wrap: wrap; gap: 2px var(--studio-space-3); margin: 0; color: var(--studio-text-tertiary); font-size: var(--studio-text-md); line-height: 16px; }
+.urlRow { display: flex; gap: var(--studio-space-2); }
+.url { flex: 1; min-width: 0; color: var(--studio-text-secondary); font-family: var(--studio-mono); font-size: var(--studio-text-md); }
+.linkActions { display: flex; justify-content: flex-end; }
+.confirm { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--studio-space-2); padding: var(--studio-space-2) var(--studio-space-3); border-radius: var(--studio-radius-md); background: var(--studio-danger-soft); }
+.confirm > div { display: grid; flex: 1 1 220px; min-width: 0; line-height: 18px; }
+.confirm span { color: var(--studio-text-secondary); font-size: var(--studio-text-md); }
+.revokeConfirm.revokeConfirm { border-color: var(--studio-danger); background: var(--studio-danger); color: #fff; }
+.revokeConfirm.revokeConfirm:hover:not(:disabled) { border-color: var(--studio-danger); background: color-mix(in srgb, var(--studio-danger) 85%, #000); color: #fff; }
+@media (max-width: 520px) { .fields { grid-template-columns: minmax(0, 1fr); } .urlRow { flex-wrap: wrap; } }

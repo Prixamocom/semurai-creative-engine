@@ -1,6 +1,6 @@
 /* Studio chrome primitives (StudioButton, StudioButtonGroup, StudioMenu).
    Every value comes from the --studio-* tokens on the editor root
-   (StudioEditor.module.css .editor). Selectors are two classes deep where
+   (StudioTokens.module.css .tokens). Selectors are two classes deep where
    they must win over the app-wide bare `button` defaults in styles/primitives.css. */
 .button {
   display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; gap: 6px;

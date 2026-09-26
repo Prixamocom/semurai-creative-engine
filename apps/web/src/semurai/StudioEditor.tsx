@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type CSSProperties } from 'react';
 import {
-  Archive, ArrowLeft, ArrowUp, ChevronDown, ChevronUp, Code2, Copy, Crosshair, Download, Eye, FileCode2, Film, History, ImageDown, Loader2, LogOut, Maximize, Maximize2, MessageSquare, Monitor,
+  Archive, ArrowLeft, ArrowUp, ChevronDown, ChevronUp, Clock, Code2, Copy, Crosshair, Download, Eye, FileCode2, Film, History, ImageDown, Loader2, LogOut, Maximize, Maximize2, MessageSquare, Monitor,
   Moon, MoreHorizontal, MousePointer2, PanelLeftClose, PanelLeftOpen, Pencil, Play, Presentation, Printer, RotateCcw, RotateCw, Smartphone, Sparkles, Sun, SunMoon, Tablet, Trash2, X, ZoomIn, ZoomOut,
 } from 'lucide-react';
 import { DeckThumbnailRail } from '../components/DeckThumbnailRail';
@@ -26,12 +26,14 @@ import { StudioPresenter } from './StudioPresenter';
 import { StudioImagePicker } from './StudioImagePicker';
 import { placeStudioImage } from './studio-images';
 import styles from './StudioEditor.module.css';
+import tokens from './StudioTokens.module.css';
 import { StudioReview, type StudioReviewSelectMode } from './StudioReview';
 import { StudioDrawBar, StudioDrawLayer } from './StudioDraw';
 import { composeStudioAnnotation, initialStudioDraw, STUDIO_ANNOTATION_MAX_SIDE, STUDIO_ANNOTATION_SCALE, studioBlobDataUrl, studioDrawReducer } from './studio-draw';
 import { StudioEditPanel, type StudioInspectorMode } from './StudioEditPanel';
 import { studioPageStyles, type StudioPageStyles } from './studio-edit-values';
 import { StudioCommentThread } from './StudioCommentThread';
+import { StudioShareButton } from './StudioShareDialog';
 import { readReviewTarget, reviewBrief, reviewCopy, type ReviewTarget, type StudioComment } from './studio-review';
 
 interface StudioDocument { version: 1; kind: string; name: string; html: string; files?: { path: string; content: string }[]; notes: (string | null)[]; brandContextHash?: string }
@@ -45,7 +47,15 @@ interface ProjectExport { id: string; format: 'html' | 'pptx'; version: number; 
 type StudioTool = 'select' | 'comment' | 'edit';
 const DEVICES = [[0, 'desktop', Monitor], [768, 'tablet', Tablet], [390, 'mobile', Smartphone]] as const;
 
-export function StudioEditor({ context, expired = false, onClose, sessionPath }: { context: StudioContext; expired?: boolean; onClose: () => void; sessionPath?: string }) {
+export function StudioEditor({ context, expired = false, onClose, sessionPath, sessionNotice, onExpired, onDirtyChange }: {
+  context: StudioContext; expired?: boolean; onClose: () => void; sessionPath?: string;
+  /** Countdown shown when the session nears its absolute cap. */
+  sessionNotice?: string;
+  /** A project request came back 401: the session is gone. */
+  onExpired?: () => void;
+  /** Reports unsaved changes, so an ending session keeps the editor instead of the expired screen. */
+  onDirtyChange?: (dirty: boolean) => void;
+}) {
   const c = studioEditorCopy[context.project.uiLocale];
   const r = reviewCopy[context.project.uiLocale];
   const k = studioCaptureCopy[context.project.uiLocale];
@@ -215,10 +225,17 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
   function selectFile(file: string) {
     activeFileRef.current = file; previewScroll.current = emptyStudioPreviewScroll; setActiveFile(file); setSelected(null); setTargets([]); setPageStyles(null); setSheet(0); setSlide(0);
   }
+  const expiredRef = useRef(onExpired); expiredRef.current = onExpired;
   const api = useCallback(async (endpoint: string, method = 'GET', body?: unknown) => {
     const response = await fetch(path + 'project/' + endpoint, { method, credentials: 'same-origin', cache: 'no-store',
       headers: { 'Content-Type': 'application/json', 'X-Creative-Action': 'project' }, body: body === undefined ? undefined : JSON.stringify(body) });
-    if (!response.ok) throw new Error(response.status === 401 ? c.expired : response.status === 409 ? c.conflict : c.error);
+    if (!response.ok) {
+      if (response.status === 401) expiredRef.current?.();
+      // Laravel's abort code (e.g. creative.share_limit) travels in `message`.
+      const detail = response.status === 422 ? await response.json().catch(() => null) as { message?: unknown } | null : null;
+      throw Object.assign(new Error(response.status === 401 ? c.expired : response.status === 409 ? c.conflict : c.error),
+        { status: response.status, ...(typeof detail?.message === 'string' ? { code: detail.message } : {}) });
+    }
     return response.json();
   }, [path, c]);
 
@@ -294,6 +311,8 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
     return () => { cancelled = true; clearTimeout(timer); };
   }, [active?.id, refresh, c]);
   useEffect(() => { const focused = () => { void refresh().catch(() => {}); }; window.addEventListener('focus', focused); return () => window.removeEventListener('focus', focused); }, [refresh]);
+  const dirtyRef = useRef(onDirtyChange); dirtyRef.current = onDirtyChange;
+  useEffect(() => { dirtyRef.current?.(dirty); }, [dirty]);
   useEffect(() => { const warn = (event: BeforeUnloadEvent) => { if (dirty) { event.preventDefault(); event.returnValue = ''; } }; window.addEventListener('beforeunload', warn); return () => window.removeEventListener('beforeunload', warn); }, [dirty]);
 
   useEffect(() => { const element = chatLog.current; if (element && followChat.current) element.scrollTop = element.scrollHeight; }, [jobs, liveMessages]);
@@ -659,7 +678,7 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
     <p className={styles.chatHint}>{c.allChanges}</p>
   </>;
 
-  return <main style={{ '--chat-width': `${chatWidth}px` } as CSSProperties} className={styles.editor + (chatCollapsed ? ' ' + styles.chatCollapsed : '') + (resizing ? ' ' + styles.resizing : '')} data-testid="semurai-studio-editor" data-studio-theme={theme} lang={context.project.uiLocale}>
+  return <main style={{ '--chat-width': `${chatWidth}px` } as CSSProperties} className={tokens.tokens + ' ' + styles.editor + (chatCollapsed ? ' ' + styles.chatCollapsed : '') + (resizing ? ' ' + styles.resizing : '')} data-testid="semurai-studio-editor" data-studio-theme={theme} lang={context.project.uiLocale}>
     {imagePicker && <StudioImagePicker initialSource={imagePicker.initialSource} target={imagePicker.target} locale={locale} api={api} onClose={() => setImagePicker(null)} onApply={(image, alt, placement) => {
       if (!latest.current || studioFileSource(latest.current, activeFileRef.current) !== imagePicker.source) return false;
       const html = placeStudioImage(studioFileSource(latest.current, activeFileRef.current), { dataUrl: image.dataUrl, alt }, placement, context.project.artifactType === 'email', imagePicker.target?.id);
@@ -749,6 +768,7 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
           </StudioMenu>
           <StudioButton icon aria-pressed={showHistory} title={historyLabel} aria-label={historyLabel} onClick={() => { setShowHistory(!showHistory); setShowExports(false); }}><History size={16} /></StudioButton>
           <StudioButton variant="secondary" disabled={!dirty || busy || expired || !!active || !!versionPreview} onClick={() => { void action(async () => { await saveCurrent(); }); }}>{video ? v.save : c.save}</StudioButton>
+          <StudioShareButton locale={locale} artifactType={context.project.artifactType} api={api} disabled={expired} />
           <StudioMenu label={c.exportMenu} title={c.export} ariaLabel={c.export} variant="primary" align="end" trigger={<><Download size={16} /><span className={styles.exportLabel}>{c.export}</span></>}>
             {video && <StudioMenuItem icon={<Film size={16} />} disabled={!document || busy || expired || !!active} onSelect={() => { void downloadVideo(); }}>MP4</StudioMenuItem>}
             <StudioMenuItem icon={<FileCode2 size={16} />} disabled={!document || busy} onSelect={() => { void exportFile('html'); }}>{c.downloadHtml}</StudioMenuItem>
@@ -768,6 +788,7 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
         <output>{videoTime.toFixed(1)} / {videoDuration.toFixed(1)} s</output>
         {busy && renderSave.current && <span role="status">{v.rendering}</span>}
       </div>}
+      {sessionNotice && !expired && <div className={styles.sessionNotice} role="status"><Clock size={16} /><span>{sessionNotice}</span></div>}
       {expired && <div className={styles.error} role="alert"><span>{c.expired}</span><a href={safeStudioReturn(context)!} target="_blank" rel="noopener noreferrer">{c.backToSemurai}</a></div>}
       {versionPreview && <div className={styles.versionBanner} role="status">
         <Eye size={16} /><span><strong>{h.preview.replace('{n}', String(versionPreview.version.version))}</strong> · {h.readOnly}</span>

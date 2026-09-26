@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useI18n } from '../i18n';
 import { safeStudioReturn, studioDocumentTitle, studioSessionPath, type StudioContext } from './studio-context';
 import './studio.css';
 import { StudioEditor } from './StudioEditor';
 import { useStudioTheme } from './studio-theme';
+import { startStudioSessionRenewal, studioCapMinutes, studioSessionCopy, type StudioSessionState } from './studio-session';
 
 const copy = {
   en: { loading: 'Opening your project…', connected: 'Connected to Semurai', project: 'Your project',
@@ -34,13 +35,27 @@ const copy = {
 export function SemuraiStudio() {
   const [context, setContext] = useState<StudioContext | null>(null);
   const [unavailable, setUnavailable] = useState(false);
+  const [session, setSession] = useState<StudioSessionState | null>(null);
+  const [capMinutes, setCapMinutes] = useState<number | null>(null);
+  const dirty = useRef(false);
   const { setLocale } = useI18n();
   const { theme } = useStudioTheme();
-  const c = copy[context?.project.uiLocale ?? 'en'];
+  // Kept apart from the context, so the expired screen stays in the project's UI language.
+  const [locale, setUiLocale] = useState<StudioContext['project']['uiLocale']>('en');
+  const c = copy[locale];
+  /**
+   * The session ended. Without unsaved work the expired screen replaces the
+   * editor; with unsaved work the editor stays (Save disabled, a banner
+   * explains it) so the user can still copy or download the HTML.
+   */
+  const expire = useCallback(() => {
+    setUnavailable(true);
+    if (!dirty.current) setContext(null);
+  }, []);
   useEffect(() => {
     const controller = new AbortController();
     const path = studioSessionPath(window.location.pathname);
-    let expiry: ReturnType<typeof setTimeout> | undefined;
+    let stopRenewal: (() => void) | undefined;
     if (!path) { setUnavailable(true); return; }
     void fetch(path + 'context', { credentials: 'same-origin', cache: 'no-store', signal: controller.signal })
       .then(async response => {
@@ -50,11 +65,24 @@ export function SemuraiStudio() {
         if (controller.signal.aborted) return;
         setContext(value);
         setLocale(value.project.uiLocale);
-        expiry = setTimeout(() => setUnavailable(true), Math.max(0, value.expiresAt - Date.now()));
+        setUiLocale(value.project.uiLocale);
+        const initial = { expiresAt: value.expiresAt, sessionExpiresAt: value.sessionExpiresAt ?? value.expiresAt };
+        setSession(initial);
+        stopRenewal = startStudioSessionRenewal({ path, initial, onChange: setSession, onExpired: expire });
       })
       .catch(() => { if (!controller.signal.aborted) setUnavailable(true); });
-    return () => { controller.abort(); clearTimeout(expiry); };
-  }, [setLocale]);
+    return () => { controller.abort(); stopRenewal?.(); };
+  }, [setLocale, expire]);
+  // A small countdown once the absolute cap is near (renewal cannot pass it).
+  // The state only changes when the shown minute does, so the editor is not re-rendered on every tick.
+  useEffect(() => {
+    if (!session || unavailable) { setCapMinutes(null); return; }
+    const tick = () => setCapMinutes(studioCapMinutes(session, Date.now()));
+    tick();
+    const interval = setInterval(tick, 15_000);
+    return () => clearInterval(interval);
+  }, [session, unavailable]);
+  const sessionNotice = capMinutes === null ? undefined : studioSessionCopy[locale].capNotice.replace('{n}', String(capMinutes));
   const projectTitle = context?.project.title;
   useEffect(() => { document.title = studioDocumentTitle(projectTitle); }, [projectTitle]);
   async function closeSession() {
@@ -67,9 +95,10 @@ export function SemuraiStudio() {
       else setUnavailable(true);
     } catch { setUnavailable(true); }
   }
-  // An expired grant must not discard a dirty document. Keep the editor mounted
-  // so the user can retain/export their work while reconnecting to Semurai.
-  if (context) return <StudioEditor context={context} expired={unavailable} onClose={() => { void closeSession(); }} />;
+  // An expired grant must not discard a dirty document (see expire above): the
+  // editor stays mounted so the user can retain/export their work.
+  if (context) return <StudioEditor context={context} expired={unavailable} sessionNotice={sessionNotice} onExpired={expire}
+    onDirtyChange={value => { dirty.current = value; }} onClose={() => { void closeSession(); }} />;
   return <main className="semurai-studio-shell" data-testid="semurai-studio" data-studio-theme={theme}>
     <header className="semurai-studio-header">
       <div className="semurai-studio-wordmark"><span aria-hidden="true">S</span>Semurai Creative <small>Studio</small></div>

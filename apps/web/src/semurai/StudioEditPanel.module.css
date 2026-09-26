@@ -1,5 +1,5 @@
 /* Docked Edit panel. Every value comes from the Studio tokens defined on the
-   editor root (StudioEditor.module.css .editor), so a dark theme only has to
+   editor root (StudioTokens.module.css .tokens), so a dark theme only has to
    override those variables. */
 .panel { display: flex; flex-direction: column; flex: 1; min-height: 0; background: var(--studio-surface); color: var(--studio-text); font-family: var(--studio-font); font-size: var(--studio-text-md); line-height: 16px; }
 .iconButton, .iconButtonSmall, .layersHead, .ghostButton, .linkButton, .primaryButton, .crumbs button, .modes button, .segmented button, .addRow button { font: inherit; line-height: 16px; color: var(--studio-text-secondary); transition: background-color .12s, color .12s; }

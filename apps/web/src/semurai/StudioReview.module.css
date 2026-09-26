@@ -35,6 +35,8 @@
 .thread strong { font-size: var(--studio-text-md); font-weight: 600; }
 .thread time { margin-left: auto; color: var(--studio-text-tertiary); font-size: var(--studio-text-sm); }
 .thread p { margin: var(--studio-space-1) 0 0; font-size: var(--studio-text-lg); line-height: 20px; white-space: pre-wrap; overflow-wrap: anywhere; }
+/* Comments written through a share link by someone outside the workspace. */
+.guest { flex-shrink: 0; padding: 0 var(--studio-space-1); border: 1px solid var(--studio-border); border-radius: var(--studio-radius-sm); color: var(--studio-text-secondary); font-size: var(--studio-text-sm); font-weight: 500; line-height: 16px; }
 .avatar { display: inline-grid; flex-shrink: 0; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--studio-track); color: var(--studio-text); font-size: var(--studio-text-sm); font-weight: 600; }
 .thread form { display: grid; gap: var(--studio-space-2); margin-top: var(--studio-space-2); }
 .thread form .input { min-height: 56px; }

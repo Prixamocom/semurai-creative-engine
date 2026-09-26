@@ -15,6 +15,8 @@ export interface StudioContext {
   };
   returnUrl: string;
   expiresAt: number;
+  /** Absolute end of the session (renewals stop there); older services omit it. */
+  sessionExpiresAt?: number;
 }
 
 /** Browser tab title for a Studio project: "<project name> | Semurai Creative". */

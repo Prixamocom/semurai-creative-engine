@@ -29,14 +29,14 @@ export function StudioCommentThread({ comment, locale, disabled, api, onChange, 
   }
   return <div className={styles.thread}>
     {[comment, ...(comment.replies ?? [])].map(message => <div key={message.id} className={styles.message}>
-      <div><span className={styles.avatar}>{message.author.slice(0, 1).toUpperCase()}</span><strong>{message.author}</strong><time dateTime={message.created_at}>{new Date(message.created_at).toLocaleString(locale, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</time></div>
+      <div><span className={styles.avatar}>{message.author.slice(0, 1).toUpperCase()}</span><strong>{message.author}</strong>{message.author_kind === 'guest' && <span className={styles.guest}>{c.guest}</span>}<time dateTime={message.created_at}>{new Date(message.created_at).toLocaleString(locale, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</time></div>
       <p>{message.text}</p>
     </div>)}
     <form onSubmit={event => { event.preventDefault(); if (reply.trim()) void mutate('reply'); }}>
       <textarea className={styles.input} aria-label={replyLabel} placeholder={replyLabel + '…'} value={reply} maxLength={4000} rows={2} onChange={event => { setReply(event.target.value); key.current = null; }} />
       <StudioButton type="submit" variant="secondary" disabled={disabled || busy || !reply.trim()}><Send size={16} />{replyLabel}</StudioButton>
     </form>
-    <div className={styles.actions}><StudioButton disabled={disabled || busy} onClick={() => { void mutate(comment.resolved ? 'reopen' : 'resolve'); }}><Check size={16} />{comment.resolved ? c.reopen : c.resolve}</StudioButton><StudioButton disabled={disabled || busy} onClick={() => onAsk(threadBrief(comment))}><Sparkles size={16} />{c.ask}</StudioButton></div>
+    <div className={styles.actions}><StudioButton disabled={disabled || busy} onClick={() => { void mutate(comment.resolved ? 'reopen' : 'resolve'); }}><Check size={16} />{comment.resolved ? c.reopen : c.resolve}</StudioButton><StudioButton disabled={disabled || busy} onClick={() => onAsk(threadBrief(comment, locale))}><Sparkles size={16} />{c.ask}</StudioButton></div>
     {error && <p role="alert" className={styles.error}>{error}</p>}
   </div>;
 }

@@ -1,6 +1,7 @@
 // Development-only fixtures for StudioDevHarness. Never imported by production code.
 import { DECK_SKELETON_HTML } from '@open-design/contracts';
 import type { StudioContext } from '../studio-context';
+import type { PublicComment, ShareItem } from '../studio-share';
 
 export const DEV_PROJECT_ID = '00000000-0000-4000-8000-00000000de70';
 export const DEV_SESSION_PATH = '/semurai-studio-dev/session/';
@@ -117,5 +118,50 @@ export function devStudioContext(locale: StudioContext['project']['uiLocale'], o
   return {
     projectId: DEV_PROJECT_ID, workspaceId: 'dev-workspace', returnUrl: origin + '/app/creative/' + DEV_PROJECT_ID, expiresAt: Date.now() + 24 * 3_600_000,
     project: { title: fixture === 'deck' ? 'Lumen 2027 (dev)' : 'Lumen Coffee Roasters (dev)', artifactType: fixture === 'deck' ? 'presentation' : 'page', locale, sourceLocale: locale, uiLocale: locale, direction: 'ltr', currentVersion: 1, coreOrigin: origin },
+  };
+}
+
+/** A share token of the right shape for the harness viewer (?share=comment|view|gone|limited). */
+export const DEV_SHARE_TOKEN = 'DevShareToken0123456789_abcdefghijklmnopqrs';
+
+/** Two links for the Studio share dialog: an active comment link and an expired view link. */
+export function devShares(): ShareItem[] {
+  const day = 86_400_000;
+  return [
+    { id: '00000000-0000-4000-8000-0000000051a1', permission: 'comment', label: 'Dla klienta', status: 'active', url: 'https://creative.semur.ai/s/' + DEV_SHARE_TOKEN,
+      created_at: new Date(Date.now() - 3 * day).toISOString(), expires_at: new Date(Date.now() + 27 * day).toISOString(), last_viewed_at: new Date(Date.now() - 3_600_000).toISOString(), view_count: 12, guest_comment_count: 3 },
+    { id: '00000000-0000-4000-8000-0000000051a2', permission: 'view', label: null, status: 'expired', url: 'https://creative.semur.ai/s/' + DEV_SHARE_TOKEN.split('').reverse().join(''),
+      created_at: new Date(Date.now() - 20 * day).toISOString(), expires_at: new Date(Date.now() - 13 * day).toISOString(), last_viewed_at: null, view_count: 1, guest_comment_count: 0 },
+  ];
+}
+
+/** An in-memory stand-in for creative-service's /s/<token>/api/* proxy. */
+export function devShareFetch(fixture: DevFixture, mode: 'comment' | 'view' | 'gone' | 'limited'): typeof fetch {
+  const document = devDocument(fixture);
+  const created_at = new Date(Date.now() - 7_200_000).toISOString();
+  let comments: PublicComment[] = [
+    { id: 'dev-share-1', text: 'Czy możemy dodać zdjęcie zespołu?', target: { file: 'index.html', version: 1, label: fixture === 'deck' ? 'Slajd 1' : 'Cała strona', selector: 'body', text: '', ...(fixture === 'deck' ? { slideIndex: 0 } : {}) },
+      resolved: false, revision: 2, created_at, author: 'Marta (klient)', author_kind: 'guest',
+      replies: [{ id: 'dev-share-1-r', text: 'Tak, dodamy w kolejnej wersji.', author: 'Anna', author_kind: 'member', created_at }] },
+    { id: 'dev-share-2', text: 'Nagłówek jest za długi.', target: { file: 'index.html', version: 1, label: 'h1', selector: fixture === 'deck' ? '.slide h1' : '.hero h1', text: '' },
+      resolved: false, revision: 1, created_at, author: 'Anna', author_kind: 'member', replies: [] },
+  ];
+  const json = (data: unknown, status = 200) => new Response(JSON.stringify(status === 404 ? { error: 'creative.share_not_found' } : { data }), { status, headers: { 'Content-Type': 'application/json' } });
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    const endpoint = new URL(url, window.location.href).pathname.split('/api/')[1];
+    await new Promise(resolve => setTimeout(resolve, 250));
+    if (mode === 'gone') return json(null, 404);
+    if (endpoint === 'share') return json({ share: { permission: mode === 'view' ? 'view' : 'comment', expires_at: null },
+      project: { title: fixture === 'deck' ? 'Lumen 2027' : 'Lumen Coffee Roasters', artifact_type: fixture === 'deck' ? 'presentation' : 'page', locale: 'pl', direction: 'ltr' },
+      document: { version: 1, document_hash: 'dev-hash-1', name: document.name, html: document.html, files: 'files' in document ? document.files : [] } });
+    if (endpoint !== 'comments' || mode === 'view') return json(null, 404);
+    if (init?.method !== 'POST') return json(comments);
+    if (mode === 'limited') return new Response(JSON.stringify({ error: { code: 'rate_limited', retryable: true } }), { status: 429 });
+    const body = JSON.parse(String(init.body));
+    const now = new Date().toISOString();
+    if (body.action === 'create') comments = [...comments, { id: body.id, text: body.text, target: body.target, resolved: false, revision: 1, created_at: now, author: body.guest_name, author_kind: 'guest', replies: [] }];
+    else comments = comments.map(item => item.id !== body.id ? item : { ...item, revision: item.revision + 1, replies: [...item.replies, { id: body.reply_id, text: body.text, author: body.guest_name, author_kind: 'guest', created_at: now }] });
+    return json(comments);
   };
 }

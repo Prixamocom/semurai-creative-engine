@@ -1,0 +1,74 @@
+/* Public share viewer (ShareViewer, ShareComments). Every value comes from the
+   --studio-* tokens (StudioTokens.module.css) on the viewer root, light and dark. */
+.viewer { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100dvh; overflow: hidden; background: var(--studio-canvas); color: var(--studio-text); font-family: var(--studio-font); font-size: var(--studio-text-lg); line-height: 20px; }
+.viewer :focus-visible { outline: none; box-shadow: var(--studio-focus); }
+
+.topbar { display: flex; align-items: center; gap: var(--studio-space-2); min-width: 0; height: var(--studio-bar-h); padding: 0 var(--studio-space-2) 0 var(--studio-space-4); border-bottom: 1px solid var(--studio-border); background: var(--studio-surface); }
+.mark { display: inline-flex; flex-shrink: 0; align-items: center; gap: var(--studio-space-2); font-weight: 600; white-space: nowrap; }
+.mark > span { display: grid; place-items: center; width: 24px; height: 24px; border-radius: var(--studio-radius-md); background: #e33448; color: #fff; font-size: var(--studio-text-md); }
+.divider { flex-shrink: 0; width: 1px; height: 20px; background: var(--studio-border); }
+.title { flex: 0 1 auto; min-width: 0; margin: 0; overflow: hidden; font-size: var(--studio-text-lg); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.chip { display: inline-flex; flex-shrink: 0; align-items: center; gap: var(--studio-space-1); padding: 0 var(--studio-space-2); border-radius: var(--studio-radius-sm); background: var(--studio-track); color: var(--studio-text-secondary); font-size: var(--studio-text-sm); font-weight: 500; line-height: 20px; }
+.barEnd { display: flex; flex-shrink: 0; align-items: center; gap: var(--studio-space-1); margin-left: auto; }
+.fileTrigger.fileTrigger { max-width: 220px; }
+.fileName { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.deckNav { display: flex; align-items: center; gap: 2px; }
+.counter { min-width: 84px; color: var(--studio-text-secondary); font-size: var(--studio-text-md); font-variant-numeric: tabular-nums; text-align: center; white-space: nowrap; }
+
+.body { display: flex; min-width: 0; min-height: 0; }
+.stage { display: flex; flex: 1; min-width: 0; min-height: 0; padding: var(--studio-space-4); }
+.frame { display: flex; flex: 1; width: 100%; min-width: 0; margin: 0 auto; overflow: hidden; border-radius: var(--studio-radius-md); background: var(--studio-artboard); box-shadow: 0 0 0 1px var(--studio-border), var(--studio-shadow-xs); }
+.frame[data-deck] { background: var(--studio-letterbox); }
+.frame iframe { display: block; flex: 1; width: 100%; height: 100%; border: 0; background: var(--studio-artboard); color-scheme: light; }
+.frame[data-deck] iframe { background: transparent; }
+
+.status { display: grid; place-content: center; justify-items: center; gap: var(--studio-space-3); padding: var(--studio-space-5); text-align: center; }
+.status h1 { margin: 0; font-size: var(--studio-text-2xl); font-weight: 600; line-height: 28px; }
+.status p { max-width: 420px; margin: 0; color: var(--studio-text-secondary); }
+.status > div { display: grid; justify-items: center; gap: var(--studio-space-3); }
+
+.panel { display: flex; flex-direction: column; flex-shrink: 0; width: 340px; min-height: 0; border-left: 1px solid var(--studio-border); background: var(--studio-surface); }
+.panelHead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--studio-space-2); min-height: var(--studio-bar-h); margin: calc(-1 * var(--studio-space-3)) calc(-1 * var(--studio-space-3)) 0; padding: 0 var(--studio-space-2) 0 var(--studio-space-4); border-bottom: 1px solid var(--studio-border); }
+.panelError { display: flex; flex-basis: 100%; align-items: center; justify-content: space-between; gap: var(--studio-space-2); margin: 0 0 var(--studio-space-2); color: var(--studio-danger); font-size: var(--studio-text-md); }
+.comments { display: flex; flex: 1; flex-direction: column; gap: var(--studio-space-3); min-height: 0; overflow-y: auto; padding: var(--studio-space-3); }
+.compose { display: grid; gap: var(--studio-space-2); }
+.field { display: grid; gap: var(--studio-space-1); }
+.field > span { color: var(--studio-text-secondary); font-size: var(--studio-text-md); font-weight: 500; line-height: 16px; }
+.input { display: block; box-sizing: border-box; width: 100%; min-height: var(--studio-control-h); padding: var(--studio-space-1) var(--studio-space-2); resize: vertical; border: 1px solid var(--studio-border); border-radius: var(--studio-radius-md); background: var(--studio-field); color: var(--studio-text); font: inherit; font-size: var(--studio-text-lg); line-height: 20px; transition: border-color .12s, box-shadow .12s; }
+.input:hover { border-color: var(--studio-border-strong); }
+.input.input:focus { outline: 0; border-color: var(--studio-accent); box-shadow: var(--studio-focus); }
+.input::placeholder { color: var(--studio-text-tertiary); }
+.targetHint { margin: 0; color: var(--studio-text-tertiary); font-size: var(--studio-text-md); overflow-wrap: anywhere; }
+.composeActions { display: flex; justify-content: flex-end; }
+.formError { margin: 0; color: var(--studio-danger); font-size: var(--studio-text-md); line-height: 18px; }
+.muted { margin: 0; color: var(--studio-text-tertiary); }
+/* Bots fill every field; people never see or reach this one. */
+.honeypot { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+
+.threads { display: grid; gap: var(--studio-space-2); }
+.thread { padding: var(--studio-space-3); border: 1px solid var(--studio-border); border-radius: var(--studio-radius-lg); background: var(--studio-surface-raised); }
+.thread[data-active] { border-color: var(--studio-accent); box-shadow: inset 0 0 0 1px var(--studio-accent); }
+.thread[data-resolved] { opacity: .7; }
+.anchor { display: flex; align-items: center; gap: var(--studio-space-2); max-width: 100%; height: var(--studio-control-h); padding: 0; border: 0; background: transparent; color: var(--studio-text); font: inherit; font-size: var(--studio-text-md); font-weight: 500; cursor: pointer; }
+.anchor.anchor:hover { background: transparent; color: var(--studio-accent); }
+.number { display: inline-grid; flex-shrink: 0; place-items: center; min-width: 20px; height: 20px; padding: 0 var(--studio-space-1); border-radius: 10px 10px 10px 3px; background: var(--studio-accent); color: var(--studio-on-accent); font-size: var(--studio-text-sm); font-weight: 600; }
+.anchorLabel { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.resolved { flex-shrink: 0; color: var(--studio-text-tertiary); font-size: var(--studio-text-sm); }
+.avatar { display: inline-grid; flex-shrink: 0; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--studio-track); color: var(--studio-text); font-size: var(--studio-text-sm); font-weight: 600; }
+.thread .message { padding: var(--studio-space-2) 0; }
+.thread .message > div { display: flex; align-items: center; gap: var(--studio-space-2); }
+.thread .message strong { min-width: 0; overflow: hidden; font-size: var(--studio-text-md); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.thread .message time { margin-left: auto; color: var(--studio-text-tertiary); font-size: var(--studio-text-sm); white-space: nowrap; }
+.thread .message p { margin: var(--studio-space-1) 0 0; color: var(--studio-text); white-space: pre-wrap; overflow-wrap: anywhere; }
+.guest { flex-shrink: 0; padding: 0 var(--studio-space-1); border: 1px solid var(--studio-border); border-radius: var(--studio-radius-sm); color: var(--studio-text-secondary); font-size: var(--studio-text-sm); font-weight: 500; line-height: 16px; }
+.reply { display: grid; gap: var(--studio-space-2); margin-top: var(--studio-space-1); }
+.reply .input { min-height: 56px; }
+.reply button { justify-self: end; }
+
+@media (max-width: 860px) {
+  .withPanel .body { flex-direction: column; }
+  .withPanel .panel { width: auto; height: 45%; border-top: 1px solid var(--studio-border); border-left: 0; }
+  .label, .chip, .divider { display: none; }
+  .stage { padding: var(--studio-space-2); }
+}
+@media (max-width: 560px) { .mark { font-size: 0; gap: 0; } .counter { min-width: 56px; } }
