@@ -443,3 +443,17 @@ it('enables real image input for the documented DeepSeek Flash provider only', (
   const unknown = buildOpenCodeByokProviderConfig({ protocol: 'openai', baseUrl: 'https://example.test/v1', apiKey: 'test', model: 'deepseek-flash' }, 'deepseek-flash');
   expect(JSON.stringify(unknown?.config)).not.toContain('modalities');
 });
+
+it('keeps image input behind the Semurai gateway only with the explicit imageInput hint', () => {
+  const baseUrl = 'http://semurai-creative-service:8081/llm/v1';
+  const gateway = buildOpenCodeByokProviderConfig({ protocol: 'openai', baseUrl, apiKey: 'run-token', model: 'deepseek-flash', imageInput: true }, 'open-design-byok/deepseek-flash');
+  expect(JSON.stringify(gateway?.config)).toContain('"input":["text","image"]');
+  const provider = (gateway?.config.provider as Record<string, { npm?: string; options?: Record<string, unknown> }>)[BYOK_OPENCODE_PROVIDER_ID];
+  expect(provider?.npm).toBe('@ai-sdk/openai-compatible');
+  expect(provider?.options?.baseURL).toBe(baseUrl);
+  expect(gateway?.env).toEqual({ OPEN_DESIGN_BYOK_API_KEY: 'run-token' });
+  const withoutHint = buildOpenCodeByokProviderConfig({ protocol: 'openai', baseUrl, apiKey: 'run-token', model: 'deepseek-flash' }, 'deepseek-flash');
+  expect(JSON.stringify(withoutHint?.config)).not.toContain('modalities');
+  const falseHint = buildOpenCodeByokProviderConfig({ protocol: 'openai', baseUrl, apiKey: 'run-token', model: 'deepseek-flash', imageInput: false }, 'deepseek-flash');
+  expect(JSON.stringify(falseHint?.config)).not.toContain('modalities');
+});

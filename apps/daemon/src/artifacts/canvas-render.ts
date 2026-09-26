@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { chromium } from 'playwright-core';
+import { chromium, type Route } from 'playwright-core';
 import { parseCanvasDocument } from '@open-design/contracts';
 
 export interface CanvasRenderPage {
@@ -13,6 +13,15 @@ export interface CanvasRenderPage {
 }
 export interface CanvasRenderReport { valid: boolean; pages: CanvasRenderPage[]; directory?: string }
 
+/**
+ * Semurai: a plain-http entry on a single-label host (a Docker container name such as
+ * semurai-creative-service) is the Semurai egress gateway. The sandbox then has no internet, so
+ * Google Fonts are served by the gateway's /gf proxy instead of fonts.googleapis.com.
+ */
+export function canvasRenderViaGateway(entry: URL): boolean {
+  return entry.protocol === 'http:' && entry.hostname !== 'localhost' && /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(entry.hostname);
+}
+
 /** Only the trusted render application and its static dependencies receive requests. */
 export function canvasRenderRequestAllowed(raw: string, renderUrl: string, method: string): boolean {
   if (method !== 'GET') return false;
@@ -21,9 +30,35 @@ export function canvasRenderRequestAllowed(raw: string, renderUrl: string, metho
     if (url.username || url.password) return false;
     if (url.origin === entry.origin) return url.pathname === entry.pathname
       || url.pathname === entry.pathname.replace(/\/$/, '')
-      || url.pathname.startsWith('/_nuxt/');
+      || url.pathname.startsWith('/_nuxt/')
+      || (canvasRenderViaGateway(entry) && /^\/gf\/(?:css2?|s\/.+)$/.test(url.pathname));
     return url.protocol === 'https:' && ['fonts.googleapis.com', 'fonts.gstatic.com'].includes(url.hostname);
   } catch { return false; }
+}
+
+/**
+ * Semurai: the gateway URL serving an allowed Google Fonts request, or null to load it directly.
+ * Playwright cannot continue a request under another scheme, so these are fetched and fulfilled.
+ */
+export function canvasRenderGatewayFontUrl(raw: string, entry: URL): string | null {
+  if (!canvasRenderViaGateway(entry)) return null;
+  const url = new URL(raw);
+  if (url.protocol !== 'https:') return null;
+  if (url.hostname === 'fonts.googleapis.com' && ['/css', '/css2'].includes(url.pathname)) return `${entry.origin}/gf${url.pathname}${url.search}`;
+  if (url.hostname === 'fonts.gstatic.com' && url.pathname.startsWith('/s/') && !url.search) return `${entry.origin}/gf${url.pathname}`;
+  return null;
+}
+
+async function fulfilViaGateway(route: Route, target: string, entry: URL): Promise<void> {
+  try {
+    const response = await fetch(target, { redirect: 'error', signal: AbortSignal.timeout(30_000) });
+    const contentType = response.headers.get('content-type') ?? 'application/octet-stream';
+    let body = Buffer.from(await response.arrayBuffer());
+    if (body.length > 6_000_000) return route.abort();
+    // The proxied stylesheet points fonts at /gf/s/ relative to itself; pin them to the gateway origin.
+    if (/^text\/css/i.test(contentType)) body = Buffer.from(body.toString('utf8').replaceAll('url(/gf/s/', `url(${entry.origin}/gf/s/`));
+    await route.fulfill({ status: response.status, contentType, body, headers: { 'access-control-allow-origin': '*' } });
+  } catch { await route.abort(); }
 }
 
 async function readProjectJson(root: string, name: string, maxBytes: number): Promise<unknown> {
@@ -40,8 +75,9 @@ export async function renderCanvasProject(projectRoot: string, writePreviews = f
   const configured = process.env.CANVAS_RENDER_URL;
   if (!configured) throw new Error('canvas_renderer_unavailable');
   const entry = new URL(configured);
+  // Semurai: plain http is also accepted for the internal gateway host (see canvasRenderViaGateway).
   if (entry.username || entry.password || entry.search || entry.hash
-    || (entry.protocol !== 'https:' && !(entry.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(entry.hostname)))) {
+    || (entry.protocol !== 'https:' && !(entry.protocol === 'http:' && (['127.0.0.1', 'localhost'].includes(entry.hostname) || canvasRenderViaGateway(entry))))) {
     throw new Error('canvas_renderer_configuration');
   }
   const media = new Map<string, string>();
@@ -71,7 +107,11 @@ export async function renderCanvasProject(projectRoot: string, writePreviews = f
   const deadline = setTimeout(() => { void browser.close(); }, 180_000);
   try {
     const context = await browser.newContext({ viewport: { width: 1600, height: 1000 }, serviceWorkers: 'block', acceptDownloads: false });
-    await context.route('**/*', route => canvasRenderRequestAllowed(route.request().url(), entry.href, route.request().method()) ? route.continue() : route.abort());
+    await context.route('**/*', route => {
+      if (!canvasRenderRequestAllowed(route.request().url(), entry.href, route.request().method())) return route.abort();
+      const gatewayFont = canvasRenderGatewayFontUrl(route.request().url(), entry);
+      return gatewayFont ? fulfilViaGateway(route, gatewayFont, entry) : route.continue();
+    });
     await context.routeWebSocket('**/*', socket => socket.close());
     const page = await context.newPage();
     page.setDefaultTimeout(60_000);

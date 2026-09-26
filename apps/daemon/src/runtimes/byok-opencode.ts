@@ -81,8 +81,10 @@ export function buildOpenCodeByokProviderConfig(
             name: rawModel,
             // The provider documents native image input for these exact Flash routes.
             // Unknown BYOK models remain text-only; do not infer multimodal support.
-            ...(protocol === 'openai' && ['https://api.deepseek.com', 'https://api.deepseek.com/v1'].includes(baseUrl)
-              && ['deepseek-flash', 'deepseek-v4-flash-vision-exp'].includes(rawModel)
+            // Semurai: behind the Semurai LLM gateway the baseUrl is the gateway, so the
+            // host states image support explicitly with `imageInput: true` instead.
+            ...(provider.imageInput === true || (protocol === 'openai' && ['https://api.deepseek.com', 'https://api.deepseek.com/v1'].includes(baseUrl)
+              && ['deepseek-flash', 'deepseek-v4-flash-vision-exp'].includes(rawModel))
               ? { attachment: true, modalities: { input: ['text', 'image'], output: ['text'] } } : {}),
             limit: {
               context: DEFAULT_CONTEXT_TOKEN_LIMIT,

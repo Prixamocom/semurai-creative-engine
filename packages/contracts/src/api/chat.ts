@@ -98,6 +98,12 @@ export interface ByokChatProviderConfig {
   /** Explicit run-scoped provider policy for presets that do not require bearer credentials. */
   requiresApiKey?: boolean;
   /**
+   * Semurai: explicit run-scoped hint that the model accepts image input. Set by
+   * the Semurai host when the provider sits behind its LLM gateway, where the
+   * baseUrl no longer names the provider host the native check relies on.
+   */
+  imageInput?: boolean;
+  /**
    * Run-scoped chat model id selected in the chat UI. Forwarded to the daemon
    * so BYOK-backed utilities (e.g. memory extraction) can honor the user's
    * model picker instead of falling back to a hardcoded default. Optional

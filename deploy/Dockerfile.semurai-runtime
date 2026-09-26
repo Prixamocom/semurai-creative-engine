@@ -15,5 +15,7 @@ RUN apk add --no-cache chromium font-noto font-noto-arabic && \
     ln -s /opt/canvas-render/node_modules/playwright-core /app/apps/daemon/node_modules/playwright-core && \
     chmod +x /app/apps/daemon/dist/artifacts/canvas-render-cli.js && \
     ln -s /app/apps/daemon/dist/artifacts/canvas-render-cli.js /usr/local/bin/canvas-render
+# OpenCode downloads ripgrep from GitHub when rg is missing; sandboxes may have no internet.
+RUN apk add --no-cache ripgrep && rg --version
 ENV CANVAS_RENDER_URL=https://semur.ai/canvas-render/ CANVAS_CHROMIUM_PATH=/usr/bin/chromium
 USER open-design
