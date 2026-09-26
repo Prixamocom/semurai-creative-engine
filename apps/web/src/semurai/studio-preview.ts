@@ -5,8 +5,19 @@ import { findRealTagEnd, HTML_TAG_PATTERNS } from '@open-design/contracts/runtim
 import { annotateManualEditSourcePaths, annotateMissingOdIds, buildSrcdoc } from '../runtime/srcdoc';
 import { STUDIO_VIDEO_BRIDGE } from './studio-video';
 import { STUDIO_CAPTURE_BRIDGE } from './studio-capture-bridge';
+import { studioFontLinks, studioFontProxyOrigin, studioRewriteFontCss } from './studio-fonts';
 
-export const STUDIO_ARTIFACT_CSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'";
+/**
+ * The preview policy. The only network source is our own font proxy
+ * (`fontOrigin`, the Studio page origin): its Google Fonts stylesheets, its
+ * font files and, for connect-src, the PNG capture bridge fetching both to
+ * inline them as data: URLs (studio-fonts.ts). No Google host, ever.
+ */
+export function studioArtifactCsp(fontOrigin: string | null): string {
+  const font = fontOrigin ? ' ' + fontOrigin : '';
+  return "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'" + font + '; img-src data: blob:; font-src data:' + font
+    + '; connect-src ' + (fontOrigin ?? "'none'") + "; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'";
+}
 
 /** Prepare an opaque preview; never persist this derivative as the user's source. */
 export function studioPreviewSource(source: string, slide = 0, edit = false, deck = true, annotate = false, markers = false, videoRuntime?: string): string {
@@ -14,11 +25,15 @@ export function studioPreviewSource(source: string, slide = 0, edit = false, dec
   // resolves the same element in the original, unsanitized canonical source.
   const mapped = annotateManualEditSourcePaths(annotateMissingOdIds(source));
   const previewDocument = new DOMParser().parseFromString(mapped, 'text/html');
+  // Google Fonts stylesheets come back pointing at our font proxy; every other author link is dropped.
+  const fontOrigin = studioFontProxyOrigin();
+  const fontLinks = studioFontLinks(previewDocument, fontOrigin);
   for (const style of previewDocument.querySelectorAll('style')) {
     // CSS comments and strings can contain HTML examples. Escape their text
     // so DOMPurify's XML/mutation checks do not discard the entire stylesheet.
     // Whitespace after a range comparator preserves its CSS meaning too.
-    style.textContent = (style.textContent ?? '').replace(
+    // @import survives only for Google Fonts, and Google font URLs, both rewritten to the proxy.
+    style.textContent = studioRewriteFontCss(style.textContent ?? '', fontOrigin).replace(
       /(\/\*[\s\S]*?\*\/|"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*')|<(?=\d)/g,
       (match, literal: string | undefined) => literal ? literal.replace(/</g, '\\3c ') : '< ',
     );
@@ -43,6 +58,12 @@ export function studioPreviewSource(source: string, slide = 0, edit = false, dec
       const value = element.getAttribute(name);
       if (value && !value.startsWith('#')) element.removeAttribute(name);
     }
+  }
+  // Rebuilt from the vetted proxy URLs only, first in the head, after the href sweep above.
+  for (const href of [...fontLinks].reverse()) {
+    const link = parsed.createElement('link');
+    link.rel = 'stylesheet'; link.href = href;
+    parsed.head.prepend(link);
   }
   if (deck) {
     const stage = parsed.querySelector<HTMLElement>('.deck-stage');
@@ -72,7 +93,7 @@ export function studioPreviewSource(source: string, slide = 0, edit = false, dec
   // First in the head, before any of the trusted preview bridges execute.
   const headEnd = findRealTagEnd(prepared, HTML_TAG_PATTERNS.headOpen);
   if (headEnd < 0) throw new Error('Invalid preview document');
-  return prepared.slice(0, headEnd) + '<meta http-equiv="Content-Security-Policy" content="' + STUDIO_ARTIFACT_CSP + '">' + prepared.slice(headEnd);
+  return prepared.slice(0, headEnd) + '<meta http-equiv="Content-Security-Policy" content="' + studioArtifactCsp(fontOrigin) + '">' + prepared.slice(headEnd);
 }
 
 export interface StudioPreviewScroll { frameLeft: number; frameTop: number; canvasLeft: number; canvasTop: number }

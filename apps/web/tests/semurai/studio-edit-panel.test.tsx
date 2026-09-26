@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { StudioEditor } from '../../src/semurai/StudioEditor';
 import { StudioEditPanel } from '../../src/semurai/StudioEditPanel';
 import { studioLayerTree } from '../../src/semurai/studio-layers';
-import { STUDIO_FONT_OPTIONS, stepStudioValue, studioHexColor, studioStyleDisplay } from '../../src/semurai/studio-edit-values';
+import { STUDIO_FONT_OPTIONS, stepStudioValue, studioFontFamilyName, studioFontSelectValue, studioHexColor, studioPageStyles, studioStyleDisplay } from '../../src/semurai/studio-edit-values';
 import { normalizeManualEditStyles } from '../../src/components/ManualEditPanel';
 import { applyManualEditPatch } from '../../src/edit-mode/source-patches';
 import type { StudioContext } from '../../src/semurai/studio-context';
@@ -215,5 +215,75 @@ describe('Studio editor edit mode', () => {
     fromPreview({ type: 'od-edit-targets', targets: targets.filter(item => item.id !== 'hero') });
     await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Font size' })).toBeNull());
     expect(screen.getByRole('navigation', { name: 'Element path' }).textContent).toBe('Page');
+  });
+
+  it('shows the page styles the preview reports in the page knobs', async () => {
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: 'Deselect' }));
+    fromPreview({ type: 'semurai:page-styles', backgroundColor: 'rgba(0, 0, 0, 0)', rootBackgroundColor: 'rgb(251, 250, 247)', fontFamily: '"Playfair Display", Georgia, serif', fontSize: '18px' });
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Background' }).getAttribute('placeholder')).toBe('#fbfaf7'));
+    expect((screen.getByRole('combobox', { name: 'Font' }) as HTMLSelectElement).selectedOptions[0]!.textContent).toBe('Playfair Display');
+  });
+});
+
+describe('Studio page knobs', () => {
+  it('derives the effective page background, font and size from the computed report', () => {
+    expect(studioPageStyles({ backgroundColor: 'rgb(10, 10, 10)', rootBackgroundColor: 'rgb(255, 255, 255)', fontFamily: 'Inter, sans-serif', fontSize: '16px' }))
+      .toEqual({ backgroundColor: '#0a0a0a', fontFamily: 'Inter, sans-serif', fontSize: '16px' });
+    // A transparent body shows the html background; both transparent means no background.
+    expect(studioPageStyles({ backgroundColor: 'rgba(0, 0, 0, 0)', rootBackgroundColor: 'rgb(251, 250, 247)', fontFamily: 'Arial', fontSize: '17.6px' }))
+      .toEqual({ backgroundColor: '#fbfaf7', fontFamily: 'Arial', fontSize: '18px' });
+    expect(studioPageStyles({ backgroundColor: 'transparent', rootBackgroundColor: 'rgba(0, 0, 0, 0)', fontFamily: '', fontSize: 'medium' }))
+      .toEqual({ backgroundColor: '', fontFamily: '', fontSize: '' });
+    expect(studioPageStyles({ backgroundColor: 'url(x)', rootBackgroundColor: 42, fontFamily: 'x'.repeat(400), fontSize: '12px' }))
+      .toEqual({ backgroundColor: '', fontFamily: '', fontSize: '12px' });
+    expect(studioPageStyles(null)).toBeNull();
+  });
+
+  it('prefers the inline font and maps a computed one to the listed option or its own first family', () => {
+    expect(studioFontFamilyName('"Playfair Display", Georgia, serif')).toBe('Playfair Display');
+    expect(studioFontSelectValue('Georgia, serif', '"Times New Roman"')).toEqual({ value: 'Georgia, serif', computed: false });
+    expect(studioFontSelectValue('', '"Times New Roman"')).toEqual({ value: '"Times New Roman", Times, serif', computed: true });
+    expect(studioFontSelectValue(undefined, 'arial, sans-serif')).toEqual({ value: 'Arial, Helvetica, sans-serif', computed: true });
+    expect(studioFontSelectValue(undefined, '"Playfair Display", Georgia, serif')).toEqual({ value: '"Playfair Display", Georgia, serif', computed: true });
+    expect(studioFontSelectValue(undefined, '')).toEqual({ value: '', computed: false });
+  });
+
+  const pageStyles = { backgroundColor: '#fbfaf7', fontFamily: '"Playfair Display", Georgia, serif', fontSize: '18px' };
+  it('shows computed values muted and writes an inline value only on edit', () => {
+    const { onPatch } = panel({ selected: null, pageStyles });
+    const background = screen.getByRole('textbox', { name: 'Background' }) as HTMLInputElement;
+    expect(background.value).toBe('');
+    expect(background.placeholder).toBe('#fbfaf7');
+    expect(background.closest('label')!.hasAttribute('data-computed')).toBe(true);
+    expect((background.closest('label')!.querySelector('span[data-computed]') as HTMLElement).style.background).toBe('rgb(251, 250, 247)');
+    const font = screen.getByRole('combobox', { name: 'Font' }) as HTMLSelectElement;
+    expect(font.selectedOptions[0]!.textContent).toBe('Playfair Display');
+    expect(font.closest('label')!.hasAttribute('data-computed')).toBe(true);
+    const size = screen.getByRole('textbox', { name: 'Base size' }) as HTMLInputElement;
+    expect([size.value, size.placeholder]).toEqual(['', '18px']);
+    expect(onPatch).not.toHaveBeenCalled();
+    fireEvent.change(background, { target: { value: '#101010' } }); fireEvent.keyDown(background, { key: 'Enter' });
+    expect(onPatch).toHaveBeenLastCalledWith({ kind: 'set-style', id: '__body__', styles: { backgroundColor: '#101010' } });
+    fireEvent.change(font, { target: { value: 'Georgia, serif' } });
+    expect(onPatch).toHaveBeenLastCalledWith({ kind: 'set-style', id: '__body__', styles: { fontFamily: 'Georgia, serif' } });
+    expect(onPatch).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows inline body styles as the values, also on the Tweaks tab', () => {
+    const source = '<!doctype html><html><head></head><body style="background-color: #222222; font-family: Georgia, serif; font-size: 20px"><h1 data-od-id="hero">Welcome</h1></body></html>';
+    panel({ source, selected: null, mode: 'tweaks', pageStyles });
+    const background = screen.getByRole('textbox', { name: 'Background' }) as HTMLInputElement;
+    expect(background.value).toBe('#222222');
+    expect(background.closest('label')!.hasAttribute('data-computed')).toBe(false);
+    const font = screen.getByRole('combobox', { name: 'Font' }) as HTMLSelectElement;
+    expect([font.value, font.closest('label')!.hasAttribute('data-computed')]).toEqual(['Georgia, serif', false]);
+    expect((screen.getByRole('textbox', { name: 'Base size' }) as HTMLInputElement).value).toBe('20px');
+    cleanup();
+    // Without a report the knobs fall back to the previous hints.
+    panel({ selected: null, mode: 'tweaks' });
+    expect(screen.getByRole('textbox', { name: 'Background' }).getAttribute('placeholder')).toBe('None');
+    expect((screen.getByRole('combobox', { name: 'Font' }) as HTMLSelectElement).selectedOptions[0]!.textContent).toBe('Default');
+    expect(screen.getByRole('textbox', { name: 'Base size' }).getAttribute('placeholder')).toBe('16px');
   });
 });

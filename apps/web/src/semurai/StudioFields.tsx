@@ -11,11 +11,12 @@ export type StudioCommit = (value: string) => string | null;
  * blur (only when the text changed), reverts on Escape and, for numeric
  * properties, steps with ArrowUp/ArrowDown (Shift = x10) committing each step.
  * `stepper` replaces the style-key stepping for values that are not element
- * styles (the design variables on the Tweaks tab).
+ * styles (the design variables on the Tweaks tab). `computed` marks a
+ * placeholder that is the effective (computed) value rather than a hint.
  */
-export function StudioField({ label, icon, ariaLabel, value, placeholder, step, stepper, adornment, disabled, onCommit }: {
+export function StudioField({ label, icon, ariaLabel, value, placeholder, step, stepper, adornment, computed, disabled, onCommit }: {
   label?: string; icon?: ReactNode; ariaLabel: string; value: string; placeholder?: string; step?: StudioStyleKey;
-  stepper?: (value: string, direction: 1 | -1, large: boolean) => string | null; adornment?: ReactNode; disabled?: boolean; onCommit: StudioCommit;
+  stepper?: (value: string, direction: 1 | -1, large: boolean) => string | null; adornment?: ReactNode; computed?: boolean; disabled?: boolean; onCommit: StudioCommit;
 }) {
   const [draft, setDraft] = useState(value);
   const [error, setError] = useState('');
@@ -30,7 +31,7 @@ export function StudioField({ label, icon, ariaLabel, value, placeholder, step, 
     if (failure) edited.current = true;
   }
   return <div className={styles.fieldWrap}>
-    <label className={styles.field} data-invalid={error ? true : undefined} title={label ? ariaLabel : undefined}>
+    <label className={styles.field} data-invalid={error ? true : undefined} data-computed={computed && !draft ? true : undefined} title={label ? ariaLabel : undefined}>
       {icon ? <span className={styles.fieldIcon} aria-hidden="true">{icon}</span> : label && <span className={styles.fieldLabel}>{label}</span>}
       {adornment}
       <input className={styles.fieldInput} value={draft} placeholder={placeholder} aria-label={ariaLabel} aria-invalid={error ? true : undefined} aria-describedby={error ? errorId : undefined}
@@ -52,12 +53,18 @@ export function StudioField({ label, icon, ariaLabel, value, placeholder, step, 
   </div>;
 }
 
-/** Color field: swatch opening the native picker plus a hex text value. */
-export function StudioColorField({ label, value, pickLabel, placeholder, disabled, onCommit }: { label: string; value: string; pickLabel: string; placeholder?: string; disabled?: boolean; onCommit: StudioCommit }) {
+/**
+ * Color field: swatch opening the native picker plus a hex text value.
+ * `fallback` is the effective (computed) color while no value is set: the
+ * swatch shows it and the text shows it as a muted placeholder.
+ */
+export function StudioColorField({ label, value, fallback, pickLabel, placeholder, disabled, onCommit }: { label: string; value: string; fallback?: string; pickLabel: string; placeholder?: string; disabled?: boolean; onCommit: StudioCommit }) {
   const picker = useRef<HTMLInputElement>(null);
   const commitRef = useRef(onCommit); commitRef.current = onCommit;
+  const inherited = !value && fallback ? fallback : '';
+  const shown = value || inherited;
   // Short hex and rgb() values still open the picker on their color.
-  const normalized = studioHexColor(value);
+  const normalized = studioHexColor(shown);
   const hex = /^#[0-9a-f]{6}$/.test(normalized) ? normalized : '#000000';
   // Uncontrolled on purpose: the native `change` event fires once the picker
   // closes, while React's onChange follows `input` and would commit (and
@@ -68,20 +75,20 @@ export function StudioColorField({ label, value, pickLabel, placeholder, disable
     const changed = () => { if (input.value.toLowerCase() !== value) commitRef.current(input.value.toLowerCase()); };
     input.addEventListener('change', changed); return () => input.removeEventListener('change', changed);
   }, [value]);
-  const swatch = <span className={styles.swatch} data-empty={value ? undefined : true} style={value ? { background: value } : undefined}>
+  const swatch = <span className={styles.swatch} data-empty={shown ? undefined : true} data-computed={inherited ? true : undefined} style={shown ? { background: shown } : undefined}>
     <input ref={picker} type="color" aria-label={pickLabel + ': ' + label} title={pickLabel} disabled={disabled} defaultValue={hex} />
   </span>;
-  return <StudioField label={label} ariaLabel={label} value={value} placeholder={placeholder ?? "#rrggbb"} adornment={swatch} disabled={disabled} onCommit={onCommit} />;
+  return <StudioField label={label} ariaLabel={label} value={value} placeholder={inherited || (placeholder ?? "#rrggbb")} computed={!!inherited} adornment={swatch} disabled={disabled} onCommit={onCommit} />;
 }
 
 export interface StudioOption { value: string; label: string }
-/** Native select with the inside label; commits immediately on change. */
-export function StudioSelectField({ label, value, options, disabled, onCommit }: { label: string; value: string; options: StudioOption[]; disabled?: boolean; onCommit: StudioCommit }) {
+/** Native select with the inside label; commits immediately on change. `computed` shows the value muted (not set inline). */
+export function StudioSelectField({ label, value, options, computed, disabled, onCommit }: { label: string; value: string; options: StudioOption[]; computed?: boolean; disabled?: boolean; onCommit: StudioCommit }) {
   const [error, setError] = useState('');
   useEffect(() => setError(''), [value]);
   const listed = options.some(option => option.value === value) ? options : [...options, { value, label: value.split(',')[0]!.replace(/["']/g, '').trim() || value }];
   return <div className={styles.fieldWrap}>
-    <label className={styles.field} data-invalid={error ? true : undefined}>
+    <label className={styles.field} data-invalid={error ? true : undefined} data-computed={computed ? true : undefined}>
       <span className={styles.fieldLabel}>{label}</span>
       <select className={styles.fieldInput} aria-label={label} value={value} disabled={disabled} onChange={event => { setError(onCommit(event.target.value) ?? ''); }}>
         {listed.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}

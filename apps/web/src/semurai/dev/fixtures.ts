@@ -48,9 +48,16 @@ export const DEV_LANDING_HTML = `<!doctype html>
 <footer class="footer" id="contact"><span>© 2026 Lumen Coffee Roasters</span><nav><a href="https://example.com/regulamin">Regulamin</a><a href="https://example.com/prywatnosc">Prywatność</a></nav></footer>
 </body></html>`;
 
-/** A second project file, so the harness exercises the file switcher and the Tweaks tab (its styles use :root variables). */
+/**
+ * A second project file, so the harness exercises the file switcher and the
+ * Tweaks tab (its styles use :root variables). Its headings use a Google Font
+ * (Playfair Display) to check the font proxy rewrite in the preview and PNG
+ * capture (open the harness with ?fontProxy=<creative-service origin>).
+ */
 export const DEV_ABOUT_HTML = `<!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><title>O nas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&amp;display=swap">
 <style>
 :root {
   --color-ink: #1d1d1f;
@@ -58,6 +65,7 @@ export const DEV_ABOUT_HTML = `<!doctype html>
   --color-paper: #fbfaf7;
   --color-accent: #c26a3d;
   --font-body: Arial, Helvetica, sans-serif;
+  --font-heading: 'Playfair Display', Georgia, serif;
   --font-size-title: 48px;
   --line-height-body: 1.7;
   --space-page: 96px;
@@ -65,7 +73,7 @@ export const DEV_ABOUT_HTML = `<!doctype html>
   --measure: 760px;
   --title-color: var(--color-ink);
 }
-body{margin:0;font-family:var(--font-body);color:var(--color-ink);background:var(--color-paper)}main{max-width:var(--measure);margin:0 auto;padding:var(--space-page) 32px}h1{font-size:var(--font-size-title);margin:0 0 20px;color:var(--title-color)}p{font-size:18px;line-height:var(--line-height-body);color:var(--color-muted)}.note{padding:20px 24px;border-radius:var(--radius-card);background:#fff;border-left:4px solid var(--color-accent)}
+body{margin:0;font-family:var(--font-body);color:var(--color-ink);background:var(--color-paper)}main{max-width:var(--measure);margin:0 auto;padding:var(--space-page) 32px}h1{font-family:var(--font-heading);font-size:var(--font-size-title);margin:0 0 20px;color:var(--title-color)}p{font-size:18px;line-height:var(--line-height-body);color:var(--color-muted)}.note{padding:20px 24px;border-radius:var(--radius-card);background:#fff;border-left:4px solid var(--color-accent)}
 </style></head>
 <body><main><h1>O palarni Lumen</h1><p>Zaczęliśmy w 2019 roku od jednego pieca i trzech odmian ziarna. Dziś palimy dwanaście kaw z ośmiu krajów, ale każdą partię nadal sprawdzamy ręcznie.</p><p class="note">Odwiedź nas w każdą sobotę na degustacji w Krakowie.</p></main></body></html>`;
 

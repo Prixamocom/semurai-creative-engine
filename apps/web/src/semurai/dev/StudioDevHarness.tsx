@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { useI18n } from '../../i18n';
 import type { StudioContext } from '../studio-context';
 import { StudioEditor } from '../StudioEditor';
+import { setStudioFontProxyOrigin } from '../studio-fonts';
 import { DEV_FIRST_PROMPT, DEV_MEDIA, DEV_SESSION_PATH, devComments, devDocument, devStudioContext, type DevFixture } from './fixtures';
 
 type Locale = StudioContext['project']['uiLocale'];
@@ -74,14 +75,17 @@ export function StudioDevHarness() {
   const [context, setContext] = useState<StudioContext | null>(null);
   useEffect(() => {
     // ?locale=pl|en|de, ?fixture=deck for a presentation (default: two-file landing page).
+    // ?fontProxy=<origin> serves Google Fonts from a local creative-service (/gf proxy);
+    // without it the fonts fall back, since `next dev` has no /gf routes.
     const query = new URLSearchParams(window.location.search);
+    setStudioFontProxyOrigin(query.get('fontProxy'));
     const fixture: DevFixture = query.get('fixture') === 'deck' ? 'deck' : 'page';
     const restore = installStubs(fixture);
     const requested = query.get('locale');
     const locale: Locale = requested === 'en' || requested === 'de' ? requested : 'pl';
     setLocale(locale);
     setContext(devStudioContext(locale, window.location.origin, fixture));
-    return restore;
+    return () => { restore(); setStudioFontProxyOrigin(null); };
   }, [setLocale]);
   return context ? <StudioEditor context={context} sessionPath={DEV_SESSION_PATH} onClose={() => {}} /> : null;
 }

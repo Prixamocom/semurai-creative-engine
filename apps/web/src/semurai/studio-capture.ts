@@ -5,6 +5,7 @@
  * the output at a size every browser canvas can hold and exchanges the
  * messages with the frame.
  */
+import { studioFontProxyOrigin } from './studio-fonts';
 
 export type StudioCaptureTarget =
   | { kind: 'page' }
@@ -128,7 +129,32 @@ function exchange(frame: Window, message: Record<string, unknown>, reply: string
   });
 }
 
-export interface StudioCaptureResult { blob: Blob; plan: StudioCapturePlan; label: string }
+/** Some Google Fonts could not be embedded, so the image used fallback fonts. */
+export interface StudioCaptureResult { blob: Blob; plan: StudioCapturePlan; label: string; fontsMissing: boolean }
+
+/**
+ * Session cache of the font proxy URLs the capture bridge fetched (stylesheet
+ * text and font data: URLs), handed back to every render so a reloaded
+ * preview does not download them again. Bounded by total size.
+ */
+export const STUDIO_FONT_CACHE_MAX_CHARS = 24_000_000;
+const fontCache = new Map<string, string>();
+let fontCacheChars = 0;
+const FONT_DATA = /^data:(?:font\/[\w.+-]+|application\/(?:font-[\w.+-]+|x-font-[\w.+-]+|octet-stream));base64,[A-Za-z0-9+/=]+$/;
+
+/** Keeps only well-formed entries on the font proxy: stylesheet text for /gf/css*, font data: URLs for /gf/s/. */
+export function rememberStudioFonts(fetched: unknown, origin: string | null = studioFontProxyOrigin()): void {
+  if (!fetched || typeof fetched !== 'object' || !origin) return;
+  for (const [url, value] of Object.entries(fetched as Record<string, unknown>)) {
+    if (typeof value !== 'string' || fontCache.has(url)) continue;
+    const font = url.startsWith(origin + '/gf/s/'), sheet = url.startsWith(origin + '/gf/css');
+    if (font ? !FONT_DATA.test(value) : !sheet || value.startsWith('data:')) continue;
+    if (fontCacheChars + value.length > STUDIO_FONT_CACHE_MAX_CHARS) continue;
+    fontCache.set(url, value); fontCacheChars += value.length;
+  }
+}
+export function studioFontCache(): Record<string, string> { return Object.fromEntries(fontCache); }
+export function clearStudioFontCache(): void { fontCache.clear(); fontCacheChars = 0; }
 
 /** Measure, plan and render one PNG in the preview frame. */
 export async function captureStudioPng(frame: Window | null | undefined, target: StudioCaptureTarget, options: { scale?: number; maxSide?: number; measureTimeoutMs?: number; renderTimeoutMs?: number } = {}): Promise<StudioCaptureResult> {
@@ -136,11 +162,12 @@ export async function captureStudioPng(frame: Window | null | undefined, target:
   const measured = readMeasure(await exchange(frame, { type: 'semurai:capture-measure', target }, 'semurai:capture-measure:result', options.measureTimeoutMs ?? STUDIO_CAPTURE_MEASURE_TIMEOUT_MS, 'unavailable'));
   const plan = studioCapturePlan(measured, { scale: options.scale, maxSide: options.maxSide });
   if (!plan) throw new StudioCaptureError('empty');
-  const rendered = await exchange(frame, { type: 'semurai:capture-render', clip: plan.clip, document: plan.document, stage: plan.stage, width: plan.width, height: plan.height, background: measured.background },
+  const rendered = await exchange(frame, { type: 'semurai:capture-render', clip: plan.clip, document: plan.document, stage: plan.stage, width: plan.width, height: plan.height, background: measured.background, fonts: studioFontCache(), fontOrigin: studioFontProxyOrigin() },
     'semurai:capture-render:result', options.renderTimeoutMs ?? STUDIO_CAPTURE_RENDER_TIMEOUT_MS, 'timeout');
   const blob = rendered.blob;
   if (!(blob instanceof Blob) || !blob.size) throw new StudioCaptureError('empty-render');
-  return { blob, plan, label: measured.label };
+  rememberStudioFonts(rendered.fonts);
+  return { blob, plan, label: measured.label, fontsMissing: rendered.fontsMissing === true };
 }
 
 /** Copies a PNG to the system clipboard; needs a fresh user gesture in most browsers. */

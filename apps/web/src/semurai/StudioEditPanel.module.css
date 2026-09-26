@@ -74,6 +74,9 @@ select.fieldInput { appearance: none; padding-right: 16px; cursor: pointer; }
 .fieldError { margin: var(--studio-space-1) 0 0; color: var(--studio-danger); font-size: var(--studio-text-sm); line-height: 14px; }
 .swatch { position: relative; flex-shrink: 0; width: 16px; height: 16px; overflow: hidden; border-radius: var(--studio-radius-sm); box-shadow: inset 0 0 0 1px var(--studio-border-strong); }
 .swatch[data-empty] { background: linear-gradient(135deg, transparent 45%, var(--studio-danger) 45% 55%, transparent 55%), var(--studio-surface-raised); }
+/* Effective values that are not set inline (page knobs): readable, but quieter than an own value. */
+.field[data-computed] .fieldInput, .field[data-computed] .fieldInput::placeholder { color: var(--studio-text-tertiary); }
+.swatch[data-computed] { opacity: .85; }
 .swatch input { position: absolute; inset: -4px; width: 24px; height: 24px; padding: 0; border: 0; opacity: 0; cursor: pointer; }
 
 .segmented { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; height: var(--studio-control-h); padding: 2px; border-radius: var(--studio-radius-md); background: var(--studio-track); }

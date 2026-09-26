@@ -1,4 +1,5 @@
 import { STUDIO_PREVIEW_ACCENT } from './studio-comment-bridge';
+import { STUDIO_FONT_INLINER } from './studio-fonts';
 
 /**
  * Trusted, Semurai-owned PNG capture for the Studio preview. It runs inside the
@@ -8,16 +9,23 @@ import { STUDIO_PREVIEW_ACCENT } from './studio-comment-bridge';
  *   -> semurai:capture-picked { elementId, label } or semurai:capture-pick-cancel (Escape)
  *   semurai:capture-measure  { id, target }      -> semurai:capture-measure:result
  *                            (target.kind: page | viewport | slide | element)
- *   semurai:capture-render   { id, clip, document, width, height, background, stage }
- *   -> semurai:capture-render:result { id, blob, width, height } or { id, error }
+ *   semurai:capture-render   { id, clip, document, width, height, background, stage, fonts, fontOrigin }
+ *   -> semurai:capture-render:result { id, blob, width, height, fontsMissing, fonts } or { id, error }
+ *   semurai:page-styles-request -> semurai:page-styles { backgroundColor, rootBackgroundColor, fontFamily, fontSize }
+ *                            (also posted once the document has loaded; computed styles of body and html
+ *                            for the edit panel's page knobs, see studioPageStyles in studio-edit-values.ts)
  *
  * The host turns a measurement into a clip rectangle in document coordinates
  * (studioCapturePlan in studio-capture.ts). Rendering clones the whole document,
  * pins every element's computed layout inline, serializes it as XHTML inside an
  * SVG <foreignObject> sized to the full document (so media queries and layout
  * match the preview) and draws only the clip rectangle onto the canvas at the
- * requested scale. Only fonts embedded as data: URLs survive the SVG image,
- * which matches what the preview CSP (font-src data:) can show anyway.
+ * requested scale. Only fonts embedded as data: URLs survive the SVG image, so
+ * the Google Fonts faces the document uses are fetched from our font proxy
+ * (`fontOrigin`) and inlined first (STUDIO_FONT_INLINER in studio-fonts.ts).
+ * `fonts` in the render request is the host's session cache of already
+ * fetched URLs; the result hands back the newly fetched ones and whether some
+ * font fell back.
  */
 export const STUDIO_CAPTURE_BRIDGE = String.raw`(function () {
   if (window.__semuraiCaptureBridge) return;
@@ -39,6 +47,7 @@ export const STUDIO_CAPTURE_BRIDGE = String.raw`(function () {
     'flex-direction','flex-wrap','flex-grow','flex-shrink','flex-basis','order','align-items','align-content','align-self','justify-content','justify-items','justify-self',
     'row-gap','column-gap','grid-template-columns','grid-template-rows','grid-template-areas','grid-auto-flow','grid-auto-columns','grid-auto-rows',
     'grid-column-start','grid-column-end','grid-row-start','grid-row-end','table-layout','border-collapse','border-spacing','aspect-ratio'];
+  var fontInliner = ${STUDIO_FONT_INLINER}(window);
   var SKIP = { head: 1, style: 1, script: 1, template: 1, title: 1, meta: 1, link: 1, base: 1, noscript: 1 };
   function post(message) { parent.postMessage(message, '*'); }
   function scrollOffset() {
@@ -148,7 +157,7 @@ export const STUDIO_CAPTURE_BRIDGE = String.raw`(function () {
     var fonts = document.fonts && document.fonts.ready ? document.fonts.ready.catch(function () {}) : null;
     return Promise.all(images.concat([fonts]));
   }
-  function svgFor(request) {
+  function svgFor(request, fontCss) {
     var root = document.documentElement;
     var originals = [root].concat([].slice.call(root.querySelectorAll('*')));
     var clone = root.cloneNode(true);
@@ -159,6 +168,7 @@ export const STUDIO_CAPTURE_BRIDGE = String.raw`(function () {
     clone.querySelectorAll('script,noscript,template,iframe,object,embed,link,meta,base,[data-studio-comment-markers],[data-od-edit-guides-layer],[' + UI + ']').forEach(function (node) { node.remove(); });
     clone.querySelectorAll('style').forEach(function (node) { node.textContent = cleanCss(node.textContent); });
     var head = clone.querySelector('head') || clone;
+    if (fontCss) { var fonts = document.createElement('style'); fonts.textContent = fontCss; head.appendChild(fonts); }
     var freeze = document.createElement('style');
     freeze.textContent = '*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}';
     head.appendChild(freeze);
@@ -189,7 +199,10 @@ export const STUDIO_CAPTURE_BRIDGE = String.raw`(function () {
     return true;
   }
   function render(request) {
+    var fonts = { css: '', missing: false, fetched: {} };
     return wait().then(function () {
+      return fontInliner.embed(document, { cache: request.fonts, origin: request.fontOrigin }).then(function (value) { fonts = value; }, function () { fonts.missing = true; });
+    }).then(function () {
       return new Promise(function (resolve, reject) {
         var image = new Image();
         var clip = request.clip, attempts = 0;
@@ -205,12 +218,12 @@ export const STUDIO_CAPTURE_BRIDGE = String.raw`(function () {
             context.globalCompositeOperation = 'destination-over';
             context.fillStyle = request.background || '#ffffff';
             context.fillRect(0, 0, request.width, request.height);
-            canvas.toBlob(function (blob) { if (blob) resolve({ blob: blob, width: canvas.width, height: canvas.height }); else reject(new Error('empty-render')); }, 'image/png');
+            canvas.toBlob(function (blob) { if (blob) resolve({ blob: blob, width: canvas.width, height: canvas.height, fontsMissing: fonts.missing, fonts: fonts.fetched }); else reject(new Error('empty-render')); }, 'image/png');
           } catch (error) { reject(error); }
         }
         image.onload = draw;
         image.onerror = function () { reject(new Error('empty-render')); };
-        image.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgFor(request));
+        image.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgFor(request, fonts.css));
       });
     });
   }
@@ -218,6 +231,14 @@ export const STUDIO_CAPTURE_BRIDGE = String.raw`(function () {
     if (error && error.name === 'SecurityError') return 'tainted';
     return error && error.message === 'empty-render' ? 'empty-render' : 'failed';
   }
+
+  function pageStyles() {
+    var body = document.body, root = document.documentElement;
+    var bodyStyle = body ? getComputedStyle(body) : null, rootStyle = getComputedStyle(root);
+    post({ type: 'semurai:page-styles', backgroundColor: bodyStyle ? bodyStyle.backgroundColor : '', rootBackgroundColor: rootStyle.backgroundColor,
+      fontFamily: (bodyStyle || rootStyle).fontFamily, fontSize: (bodyStyle || rootStyle).fontSize });
+  }
+  if (document.readyState === 'complete') pageStyles(); else window.addEventListener('load', pageStyles, { once: true });
 
   var picking = false, hovered = null, box = null, cursor = null;
   function pickable(event) {
@@ -264,13 +285,14 @@ export const STUDIO_CAPTURE_BRIDGE = String.raw`(function () {
     if (event.source !== parent || !event.data || typeof event.data !== 'object') return;
     var data = event.data;
     if (data.type === 'semurai:capture-pick') setPicking(!!data.enabled);
+    if (data.type === 'semurai:page-styles-request') { try { pageStyles(); } catch (_) {} }
     if (data.type === 'semurai:capture-measure' && typeof data.id === 'string') {
       var result;
       try { result = measure(data.target); } catch (_) { result = { error: 'failed' }; }
       result.type = 'semurai:capture-measure:result'; result.id = data.id; post(result);
     }
     if (data.type === 'semurai:capture-render' && typeof data.id === 'string') {
-      render(data).then(function (value) { post({ type: 'semurai:capture-render:result', id: data.id, blob: value.blob, width: value.width, height: value.height }); },
+      render(data).then(function (value) { post({ type: 'semurai:capture-render:result', id: data.id, blob: value.blob, width: value.width, height: value.height, fontsMissing: value.fontsMissing, fonts: value.fonts }); },
         function (error) { post({ type: 'semurai:capture-render:result', id: data.id, error: errorCode(error) }); });
     }
   });

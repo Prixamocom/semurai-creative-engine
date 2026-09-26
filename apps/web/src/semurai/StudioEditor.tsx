@@ -30,6 +30,7 @@ import { StudioReview, type StudioReviewSelectMode } from './StudioReview';
 import { StudioDrawBar, StudioDrawLayer } from './StudioDraw';
 import { composeStudioAnnotation, initialStudioDraw, STUDIO_ANNOTATION_MAX_SIDE, STUDIO_ANNOTATION_SCALE, studioBlobDataUrl, studioDrawReducer } from './studio-draw';
 import { StudioEditPanel, type StudioInspectorMode } from './StudioEditPanel';
+import { studioPageStyles, type StudioPageStyles } from './studio-edit-values';
 import { StudioCommentThread } from './StudioCommentThread';
 import { readReviewTarget, reviewBrief, reviewCopy, type ReviewTarget, type StudioComment } from './studio-review';
 
@@ -56,6 +57,8 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
   const pickingRef = useRef(picking); pickingRef.current = picking;
   const [capturing, setCapturing] = useState(false);
   const [toast, setToast] = useState<StudioToastState | null>(null);
+  // Computed page styles reported by the preview (capture bridge), for the page knobs.
+  const [pageStyles, setPageStyles] = useState<StudioPageStyles | null>(null);
   const [versionLoading, setVersionLoading] = useState<string | null>(null);
   const [confirmRestore, setConfirmRestore] = useState<Version | null>(null);
   const confirmRef = useRef(confirmRestore); confirmRef.current = confirmRestore;
@@ -210,7 +213,7 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
     leaveComment(() => { setAiTarget(target); prefillChat(text); });
   }
   function selectFile(file: string) {
-    activeFileRef.current = file; previewScroll.current = emptyStudioPreviewScroll; setActiveFile(file); setSelected(null); setTargets([]); setSheet(0); setSlide(0);
+    activeFileRef.current = file; previewScroll.current = emptyStudioPreviewScroll; setActiveFile(file); setSelected(null); setTargets([]); setPageStyles(null); setSheet(0); setSlide(0);
   }
   const api = useCallback(async (endpoint: string, method = 'GET', body?: unknown) => {
     const response = await fetch(path + 'project/' + endpoint, { method, credentials: 'same-origin', cache: 'no-store',
@@ -379,6 +382,7 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
         reselect.current = false;
       }
       if (data.type === 'od-edit-select' && data.target && typeof data.target.id === 'string') pick(data.target);
+      if (data.type === 'semurai:page-styles') { const reported = studioPageStyles(data); if (reported) setPageStyles(previous => previous && JSON.stringify(previous) === JSON.stringify(reported) ? previous : reported); }
       if (data.type === 'od-edit-background') setSelected(null);
       if (data.type === 'od-edit-text-commit' && typeof data.id === 'string' && typeof data.value === 'string') patch({ kind: 'set-text', id: data.id, value: data.value });
       if (data.type === 'od-edit-drag-commit' && typeof data.id === 'string' && typeof data.transform === 'string') patch({ kind: 'set-style', id: data.id, styles: { transform: data.transform, ...(data.display ? { display: data.display } : {}) } });
@@ -413,8 +417,8 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
       const result = await captureStudioPng(frame.current?.contentWindow, target);
       const name = studioPngFileName(context.project.title, part || result.label || k.partElement);
       downloadStudioFile(result.blob, 'image/png', name, '.png');
-      setToast({ id: Date.now(), message: k.saved.replace('{name}', name + '.png'), blob: result.blob,
-        detail: result.plan.capped ? k.scaled.replace('{scale}', result.plan.scale.toLocaleString(context.project.uiLocale, { maximumFractionDigits: 2 })) : undefined });
+      const details = [result.plan.capped ? k.scaled.replace('{scale}', result.plan.scale.toLocaleString(context.project.uiLocale, { maximumFractionDigits: 2 })) : '', result.fontsMissing ? k.fontsMissing : ''].filter(Boolean);
+      setToast({ id: Date.now(), message: k.saved.replace('{name}', name + '.png'), blob: result.blob, detail: details.length ? details.join(' ') : undefined });
     } catch (reason) { setError(studioCaptureMessage(reason, k)); }
     finally { setCapturing(false); }
   }
@@ -693,7 +697,7 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath }:
         onMode={setInspectorMode} onLayersOpen={setLayersOpen} onSelect={pick} onPatch={patch} onPickImage={() => { if (document && selected) setImagePicker({ source: visibleHtml, target: selected, initialSource: 'library' }); }}
         onInsertImage={deck ? undefined : initialSource => { if (document) setImagePicker({ source: visibleHtml, target: selected, initialSource }); }}
         onExportPng={() => { if (selected) void capturePng({ kind: 'element', elementId: selected.id }); }} exportBusy={capturing || picking}
-        onSource={html => { if (latest.current && html !== studioFileSource(latest.current, activeFileRef.current)) change({ ...latest.current, html }); }} onAskAi={text => prefillChat(text)} />}
+        onSource={html => { if (latest.current && html !== studioFileSource(latest.current, activeFileRef.current)) change({ ...latest.current, html }); }} onAskAi={text => prefillChat(text)} pageStyles={pageStyles} />}
     </aside>
     <div className={styles.resizeHandle} role="separator" aria-orientation="vertical" aria-label={r.resize} aria-controls="studio-chat" aria-valuemin={280} aria-valuemax={640} aria-valuenow={Math.round(chatWidth)} tabIndex={0}
       onDoubleClick={() => setChatWidth(390)} onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); setChatWidth(value => Math.max(280, Math.min(640, value + (event.key === 'ArrowLeft' ? -20 : 20)))); } }}

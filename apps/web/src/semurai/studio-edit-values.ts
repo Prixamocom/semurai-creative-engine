@@ -94,3 +94,46 @@ export function stepStudioValue(key: StudioStyleKey, value: string, direction: 1
 export function studioSideKeys(box: 'padding' | 'margin'): [StudioStyleKey, StudioStyleKey, StudioStyleKey, StudioStyleKey] {
   return box === 'padding' ? ['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft'] : ['marginTop', 'marginRight', 'marginBottom', 'marginLeft'];
 }
+
+/** Effective page styles of the preview (computed, not inline), for the page knobs. */
+export interface StudioPageStyles { backgroundColor: string; fontFamily: string; fontSize: string }
+
+/**
+ * Reads a `semurai:page-styles` report of the capture bridge: the computed
+ * background of body, or of html when body is transparent (as hex, empty when
+ * both are transparent), and body's computed font family and size.
+ */
+export function studioPageStyles(data: unknown): StudioPageStyles | null {
+  if (!data || typeof data !== 'object') return null;
+  const report = data as Record<string, unknown>;
+  const text = (value: unknown, max: number) => typeof value === 'string' && value.length <= max ? value.trim() : '';
+  const color = (value: unknown) => { const hex = studioHexColor(text(value, 80)); return /^#[0-9a-f]{6}$/.test(hex) ? hex : ''; };
+  const size = text(report.fontSize, 40);
+  return {
+    backgroundColor: color(report.backgroundColor) || color(report.rootBackgroundColor),
+    fontFamily: text(report.fontFamily, 300),
+    fontSize: /^\d*\.?\d+px$/.test(size) ? studioStyleDisplay('fontSize', size) : '',
+  };
+}
+
+/** First family of a font-family list without quotes: `"Playfair Display", serif` -> Playfair Display. */
+export function studioFontFamilyName(value: string): string {
+  return (value.split(',')[0] ?? '').replace(/["']/g, '').trim();
+}
+
+/**
+ * The font select value: the inline family when the source sets one,
+ * otherwise the computed family (`computed: true`, shown muted). A computed
+ * family maps to the listed option with the same first family, so
+ * `"Times New Roman"` reads as "Times"; an unlisted one stays as is and the
+ * select shows its first family name.
+ */
+export function studioFontSelectValue(inline: string | undefined, computed: string | undefined): { value: string; computed: boolean } {
+  const own = inline?.trim() ?? '';
+  if (own) return { value: own, computed: false };
+  const family = computed?.trim() ?? '';
+  if (!family) return { value: '', computed: false };
+  const name = studioFontFamilyName(family).toLowerCase();
+  const option = STUDIO_FONT_OPTIONS.find(item => studioFontFamilyName(item.value).toLowerCase() === name);
+  return { value: option ? option.value : family, computed: true };
+}
