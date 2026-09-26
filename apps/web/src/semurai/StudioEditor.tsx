@@ -134,6 +134,7 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath, s
   const [jobs, setJobs] = useState<Job[]>([]);
   const jobsRef = useRef(jobs); jobsRef.current = jobs;
   const liveRefreshAt = useRef(0);
+  const finishedRuns = useRef(new Set<string>());
   const [versions, setVersions] = useState<Version[]>([]);
   const [exports, setExports] = useState<ProjectExport[]>([]);
   const [loading, setLoading] = useState(true);
@@ -368,6 +369,15 @@ export function StudioEditor({ context, expired = false, onClose, sessionPath, s
         if (!Array.isArray(runs)) return;
         if (runs.some(run => typeof run.runId === 'string' && !jobsRef.current.some(job => job.run_id === run.runId)) && Date.now() - liveRefreshAt.current > 2500) {
           liveRefreshAt.current = Date.now(); void refresh().catch(() => {});
+        }
+        // A finished run is adopted as soon as Core has persisted it, instead of waiting for the
+        // job poll (whose timers the browser throttles in background tabs). Core persists shortly
+        // after the run ends, so a few quick refreshes cover that gap.
+        const finished = runs.filter(run => typeof run.runId === 'string' && terminal.has(run.status) && !finishedRuns.current.has(run.runId)
+          && !jobsRef.current.some(job => job.run_id === run.runId && terminal.has(job.status)));
+        if (finished.length && jobsRef.current.some(job => !terminal.has(job.status))) {
+          for (const run of finished) finishedRuns.current.add(run.runId);
+          for (const delay of [300, 1200, 2500, 4500]) setTimeout(() => { if (jobsRef.current.some(job => !terminal.has(job.status))) void refresh().catch(() => {}); }, delay);
         }
         setLiveMessages(previous => {
           const next = { ...previous };
