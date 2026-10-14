@@ -24,6 +24,18 @@ describe('BYOK run input boundary', () => {
     expect(__forTestHasCompleteByokOpenCodeConfig({ agentId: 'opencode', byokProvider: {} })).toBe(false);
   });
 
+  it('validates the Semurai gateway wire API at run creation', () => {
+    const run = (wireApi: unknown) => ({
+      agentId: 'opencode',
+      model: 'open-design-byok/gpt-6-luna',
+      byokProvider: { protocol: 'openai', apiKey: 'run-token', baseUrl: 'http://semurai-creative-service:8081/llm/v1', wireApi },
+    });
+    expect(__forTestHasCompleteByokOpenCodeConfig(run('responses'))).toBe(true);
+    expect(__forTestHasCompleteByokOpenCodeConfig(run('chat'))).toBe(true);
+    expect(__forTestHasCompleteByokOpenCodeConfig(run(undefined))).toBe(true);
+    expect(__forTestHasCompleteByokOpenCodeConfig(run('completions'))).toBe(false);
+  });
+
   it('rejects a BYOK run without a run-scoped provider', () => {
     expect(__forTestHasCompleteByokOpenCodeConfig({
       agentId: 'byok-opencode',

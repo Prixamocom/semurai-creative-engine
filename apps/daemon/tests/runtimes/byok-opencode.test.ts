@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { agentCapabilities } from '../../src/runtimes/capabilities.js';
 import {
@@ -456,4 +456,86 @@ it('keeps image input behind the Semurai gateway only with the explicit imageInp
   expect(JSON.stringify(withoutHint?.config)).not.toContain('modalities');
   const falseHint = buildOpenCodeByokProviderConfig({ protocol: 'openai', baseUrl, apiKey: 'run-token', model: 'deepseek-flash', imageInput: false }, 'deepseek-flash');
   expect(JSON.stringify(falseHint?.config)).not.toContain('modalities');
+});
+
+describe('Semurai gateway wire API', () => {
+  const baseUrl = 'http://semurai-creative-service:8081/llm/v1';
+  const providerEntry = (out: ReturnType<typeof buildOpenCodeByokProviderConfig>) =>
+    (out?.config.provider as Record<string, { npm?: string; options?: Record<string, unknown> }>)[BYOK_OPENCODE_PROVIDER_ID];
+
+  it('uses the OpenAI Responses package against the gateway base URL when the host asks for responses', () => {
+    const out = buildOpenCodeByokProviderConfig(
+      { protocol: 'openai', baseUrl, apiKey: 'run-token', model: 'gpt-6.1-sol', imageInput: true, wireApi: 'responses' },
+      'open-design-byok/gpt-6.1-sol',
+    );
+    expect(out?.modelId).toBe('open-design-byok/gpt-6.1-sol');
+    expect(providerEntry(out)).toEqual({
+      name: 'Semurai Creative BYOK',
+      npm: '@ai-sdk/openai',
+      options: { apiKey: `{env:${BYOK_OPENCODE_API_KEY_ENV}}`, baseURL: baseUrl },
+      models: {
+        'gpt-6.1-sol': {
+          name: 'gpt-6.1-sol',
+          attachment: true,
+          modalities: { input: ['text', 'image'], output: ['text'] },
+          // Reasoning tokens share max_output_tokens on Responses: use the gateway clamp.
+          limit: { context: 128_000, output: 32_768 },
+        },
+      },
+    });
+    expect(out?.env).toEqual({ [BYOK_OPENCODE_API_KEY_ENV]: 'run-token' });
+    expect(JSON.stringify(out?.config)).not.toContain('run-token');
+    // No provider-defined OpenAI tools (web_search etc.) or reasoning overrides are configured.
+    expect(JSON.stringify(out?.config)).not.toMatch(/tools|web_search|reasoning|store/);
+  });
+
+  it('keeps Chat Completions behind the gateway for chat or an absent wire API', () => {
+    for (const wireApi of ['chat', undefined] as const) {
+      const out = buildOpenCodeByokProviderConfig(
+        { protocol: 'openai', baseUrl, apiKey: 'run-token', model: 'deepseek-flash', ...(wireApi ? { wireApi } : {}) },
+        'deepseek-flash',
+      );
+      expect(providerEntry(out)?.npm).toBe('@ai-sdk/openai-compatible');
+      expect(providerEntry(out)?.options?.baseURL).toBe(baseUrl);
+      expect((providerEntry(out) as { models?: Record<string, { limit?: unknown }> })?.models?.['deepseek-flash']?.limit)
+        .toEqual({ context: 128_000, output: 16_384 });
+    }
+  });
+
+  it('keeps real OpenAI on the Responses package whatever the wire API says', () => {
+    const out = buildOpenCodeByokProviderConfig(
+      { protocol: 'openai', baseUrl: 'https://api.openai.com/v1', apiKey: 'sk-openai', wireApi: 'chat' },
+      'gpt-6-luna',
+    );
+    expect(providerEntry(out)?.npm).toBe('@ai-sdk/openai');
+  });
+
+  it('ignores the wire API for non-OpenAI protocols', () => {
+    const out = buildOpenCodeByokProviderConfig(
+      { protocol: 'senseaudio', baseUrl: 'https://api.senseaudio.cn', apiKey: 'sk', wireApi: 'responses' },
+      'deepseek-v4-flash',
+    );
+    expect(providerEntry(out)?.npm).toBe('@ai-sdk/openai-compatible');
+  });
+
+  it('rejects an unsupported wire API value and says why without logging the key', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      for (const wireApi of ['completions', 'RESPONSES', '', 1, true]) {
+        expect(buildOpenCodeByokProviderConfig(
+          { protocol: 'openai', baseUrl, apiKey: 'run-token', wireApi } as unknown as Parameters<typeof buildOpenCodeByokProviderConfig>[0],
+          'gpt-6-luna',
+        )).toBeNull();
+      }
+      expect(warn).toHaveBeenCalledTimes(5);
+      expect(String(warn.mock.calls[0]?.[0])).toContain('unsupported byokProvider.wireApi "completions"');
+      expect(JSON.stringify(warn.mock.calls)).not.toContain('run-token');
+    } finally {
+      warn.mockRestore();
+    }
+    expect(buildOpenCodeByokProviderConfig(
+      { protocol: 'openai', baseUrl, apiKey: 'run-token', wireApi: null } as unknown as Parameters<typeof buildOpenCodeByokProviderConfig>[0],
+      'deepseek-flash',
+    )).not.toBeNull();
+  });
 });

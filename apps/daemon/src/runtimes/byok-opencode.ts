@@ -1,4 +1,4 @@
-import type { ByokChatProviderConfig } from '@open-design/contracts';
+import type { ByokChatProviderConfig, ByokWireApi } from '@open-design/contracts';
 
 export const BYOK_OPENCODE_AGENT_ID = 'byok-opencode';
 export const BYOK_OPENCODE_PROVIDER_ID = 'open-design-byok';
@@ -7,6 +7,10 @@ export const BYOK_OPENCODE_PROVIDER_REQUIRED_MESSAGE =
   'BYOK OpenCode requires a complete provider configuration for this run.';
 const DEFAULT_CONTEXT_TOKEN_LIMIT = 128_000;
 const DEFAULT_OUTPUT_TOKEN_LIMIT = 16_384;
+// Semurai: on the Responses API reasoning tokens count toward max_output_tokens,
+// so gateway Responses routes get the gateway's own output clamp
+// (creative-service DEFAULT_GATEWAY_LIMITS.maxOutputTokens). Keep both in sync.
+const GATEWAY_RESPONSES_OUTPUT_TOKEN_LIMIT = 32_768;
 
 const DEFAULT_BASE_URL_BY_PROTOCOL: Record<ByokChatProviderConfig['protocol'], string> = {
   anthropic: 'https://api.anthropic.com/v1',
@@ -59,6 +63,15 @@ export function buildOpenCodeByokProviderConfig(
   );
   const needsApiKey = requiresApiKey(provider, baseUrl);
   if (needsApiKey && !apiKey) return null;
+  // Semurai: an unknown wire API is a host bug; refuse the run instead of guessing.
+  const wireApi = readWireApi(provider.wireApi);
+  if (wireApi === false) {
+    // The value is not secret; it tells a host/engine version mismatch apart from a missing key.
+    console.warn(
+      `[byok-opencode] unsupported byokProvider.wireApi ${String(JSON.stringify(provider.wireApi)).slice(0, 64)}; refusing run`,
+    );
+    return null;
+  }
   if (!rawModel || rawModel.toLowerCase() === 'default') return null;
   if (!baseUrl) return null;
 
@@ -70,6 +83,7 @@ export function buildOpenCodeByokProviderConfig(
     baseUrl,
     provider.apiVersion,
     needsApiKey,
+    wireApi,
   );
   const config = {
     provider: {
@@ -88,7 +102,9 @@ export function buildOpenCodeByokProviderConfig(
               ? { attachment: true, modalities: { input: ['text', 'image'], output: ['text'] } } : {}),
             limit: {
               context: DEFAULT_CONTEXT_TOKEN_LIMIT,
-              output: DEFAULT_OUTPUT_TOKEN_LIMIT,
+              output: protocol === 'openai' && wireApi === 'responses'
+                ? GATEWAY_RESPONSES_OUTPUT_TOKEN_LIMIT
+                : DEFAULT_OUTPUT_TOKEN_LIMIT,
             },
           },
         },
@@ -167,6 +183,12 @@ function isExactOrigin(value: string, origin: string): boolean {
   }
 }
 
+/** `undefined` when the field is absent, `false` when it holds an unsupported value. */
+function readWireApi(value: unknown): ByokWireApi | undefined | false {
+  if (value === undefined || value === null) return undefined;
+  return value === 'responses' || value === 'chat' ? value : false;
+}
+
 function isRealOpenAIHost(baseUrl: string): boolean {
   if (!baseUrl) return true;
   try {
@@ -181,6 +203,7 @@ function buildProviderEntry(
   baseUrl: string,
   apiVersion: string | undefined,
   includeApiKey: boolean,
+  wireApi: ByokWireApi | undefined,
 ): { npm: ProviderPackage; options: Record<string, unknown> } {
   const apiKeyOption = includeApiKey
     ? { apiKey: `{env:${BYOK_OPENCODE_API_KEY_ENV}}` }
@@ -228,7 +251,19 @@ function buildProviderEntry(
       // Real OpenAI speaks the Responses API via @ai-sdk/openai. Every other
       // host under the "openai" protocol (DeepSeek, vLLM, etc.) only serves
       // /chat/completions, so route it through @ai-sdk/openai-compatible.
-      if (isRealOpenAIHost(baseUrl)) {
+      // Semurai: the Creative LLM gateway is not api.openai.com but serves
+      // `<baseUrl>/responses` for OpenAI routes, which the host marks with
+      // `wireApi: 'responses'`. OpenCode 1.18.30 bundles @ai-sdk/openai 3.0.88
+      // and calls `languageModel()` for this custom provider id, which that
+      // version maps to the Responses API (POST `${baseURL}/responses`). Its
+      // tools are all function tools with `strict: false` (no OpenAI built-ins
+      // such as web_search, which the gateway rejects).
+      // OpenCode sends `store: false` and `prompt_cache_key` (session id); the
+      // SDK treats gpt-5+ ids as reasoning models, so it adds
+      // `include: ['reasoning.encrypted_content']` and no `reasoning.effort`.
+      // tests/runtimes/byok-opencode-wire-pin.test.ts guards the OpenCode pin
+      // in deploy/Dockerfile.semurai-runtime: re-verify all of this before a bump.
+      if (isRealOpenAIHost(baseUrl) || wireApi === 'responses') {
         return {
           npm: '@ai-sdk/openai',
           options: {

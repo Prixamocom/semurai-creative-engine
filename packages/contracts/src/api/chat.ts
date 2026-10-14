@@ -90,6 +90,8 @@ export type ByokChatProtocol =
   | 'senseaudio'
   | 'aihubmix';
 
+export type ByokWireApi = 'responses' | 'chat';
+
 export interface ByokChatProviderConfig {
   protocol: ByokChatProtocol;
   apiKey: string;
@@ -103,6 +105,14 @@ export interface ByokChatProviderConfig {
    * baseUrl no longer names the provider host the native check relies on.
    */
   imageInput?: boolean;
+  /**
+   * Semurai: explicit run-scoped wire API for the `openai` protocol. Behind the
+   * Semurai LLM gateway the baseUrl no longer names api.openai.com, so the host
+   * sends `responses` for OpenAI routes (the gateway then serves
+   * `<baseUrl>/responses`) and `chat` (or nothing) for Chat Completions-only
+   * providers such as DeepSeek. Any other value is rejected.
+   */
+  wireApi?: ByokWireApi;
   /**
    * Run-scoped chat model id selected in the chat UI. Forwarded to the daemon
    * so BYOK-backed utilities (e.g. memory extraction) can honor the user's
